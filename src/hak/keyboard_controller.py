@@ -79,8 +79,9 @@ class KeyboardController:
                 if self._cancel_event.is_set():
                     break
 
-                # Dispatch spacebar
-                self.press_space()
+                # Scheduled jumps are taps, not held inputs. A short pulse
+                # keeps closely spaced jump/orb inputs distinguishable.
+                self.press_space(hold_seconds=0.01)
                 actual_s = time.perf_counter() - start_time
                 delta_ms = (actual_s - target_s) * 1000.0
 

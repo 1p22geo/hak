@@ -573,8 +573,15 @@ class TASEngine:
                         else:
                             consecutive_att_increment_frames = 0
 
-                    # 2. Timer reset to zero/near-zero (3 consecutive frames)
-                    if curr_ocr_time is not None and curr_ocr_time <= 0.08:
+                    # 2. Timer reset to zero/near-zero (3 consecutive frames).
+                    # Do not treat the initial HUD state as a crash: until
+                    # meaningful progress has been observed, the level may
+                    # simply not have started and playback must continue.
+                    if (
+                        max_ocr_time_seen > 0.4
+                        and curr_ocr_time is not None
+                        and curr_ocr_time <= 0.08
+                    ):
                         consecutive_zero_time_frames += 1
                         if consecutive_zero_time_frames >= 3:
                             outcome = AttemptOutcome.CRASHED.value

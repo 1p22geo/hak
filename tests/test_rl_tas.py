@@ -63,6 +63,23 @@ def test_keyboard_controller_dry_run():
     controller.abort_sequence()
 
 
+def test_keyboard_controller_dispatches_close_jump_taps():
+    """Two closely spaced jump/orb inputs must both be dispatched."""
+    controller = KeyboardController(dry_run=True)
+    dispatched: list[int] = []
+
+    t0 = time.perf_counter()
+    controller.execute_jump_sequence_async(
+        jump_timings=[0.05, 0.06],
+        start_time=t0,
+        on_jump_executed=lambda idx, planned, actual, delta: dispatched.append(idx),
+    )
+
+    time.sleep(0.12)
+    controller.abort_sequence()
+    assert dispatched == [0, 1]
+
+
 def test_keyboard_controller_abort():
     """Verify aborting an active jump sequence upon simulated crash."""
     controller = KeyboardController(dry_run=True)
