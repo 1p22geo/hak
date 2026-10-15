@@ -51,6 +51,11 @@
         timelineRail: document.getElementById('timeline-rail'),
         timelineCursor: document.getElementById('timeline-cursor'),
         timelineStatusNote: document.getElementById('timeline-status-note'),
+        verticalScroll: document.getElementById('vertical-timeline-scroll'),
+        verticalRail: document.getElementById('vertical-timeline-rail'),
+        verticalCursor: document.getElementById('vertical-timeline-cursor'),
+        verticalCursorBadge: document.getElementById('vertical-cursor-badge'),
+        verticalMarkersContainer: document.getElementById('vertical-markers-container'),
 
         // Event feed
         eventFeed: document.getElementById('event-feed-list'),
@@ -357,27 +362,30 @@
 
     /**
      * Render the Jump Timeline with planned/executed markers
+     * Supports both desktop horizontal rail and mobile vertical chronological list
      */
     function renderTimeline(attempt) {
-        if (!dom.timelineRail) return;
+        if (!dom.timelineRail && !dom.verticalMarkersContainer) return;
 
         // Stereo Madness reference duration
         const totalDuration = 85.0;
         const currentElapsed = attempt.elapsed_time || 0.0;
         const cursorPct = Math.min(100, (currentElapsed / totalDuration) * 100);
 
+        // --- 1. Desktop Horizontal Timeline ---
         if (dom.timelineCursor) {
             dom.timelineCursor.style.left = `${cursorPct}%`;
         }
 
-        // Render jump markers
-        // Remove existing markers
-        const existingMarkers = dom.timelineRail.querySelectorAll('.timeline-jump-marker');
-        existingMarkers.forEach(el => el.remove());
+        if (dom.timelineRail) {
+            const existingMarkers = dom.timelineRail.querySelectorAll('.timeline-jump-marker');
+            existingMarkers.forEach(el => el.remove());
+        }
 
         const jumps = attempt.jumps || [];
         if (jumps.length === 0) {
             if (dom.timelineStatusNote) dom.timelineStatusNote.textContent = 'Awaiting jump policy from agent...';
+            if (dom.verticalMarkersContainer) dom.verticalMarkersContainer.innerHTML = '';
             return;
         }
 
@@ -385,33 +393,177 @@
             dom.timelineStatusNote.textContent = `${jumps.length} planned jumps mapped (Synthetic/Policy timings)`;
         }
 
-        jumps.forEach(jump => {
-            const plannedPct = (jump.planned_time / totalDuration) * 100;
-            if (plannedPct < 0 || plannedPct > 100) return;
+        if (dom.timelineRail) {
+            jumps.forEach(jump => {
+                const plannedPct = (jump.planned_time / totalDuration) * 100;
+                if (plannedPct < 0 || plannedPct > 100) return;
 
-            const marker = document.createElement('div');
-            marker.className = 'timeline-jump-marker';
-            marker.style.left = `${plannedPct}%`;
+                const marker = document.createElement('div');
+                marker.className = 'timeline-jump-marker';
+                marker.style.left = `${plannedPct}%`;
 
-            if (jump.executed_time !== null && jump.executed_time !== undefined) {
-                marker.classList.add('marker-executed');
-                marker.title = `Jump executed @ ${jump.executed_time}s (Offset: ${jump.delta_ms}ms)`;
-            } else {
-                marker.classList.add('marker-planned');
-                marker.title = `Planned jump @ ${jump.planned_time.toFixed(2)}s`;
+                if (jump.executed_time !== null && jump.executed_time !== undefined) {
+                    marker.classList.add('marker-executed');
+                    marker.title = `Jump executed @ ${jump.executed_time}s (Offset: ${jump.delta_ms}ms)`;
+                } else {
+                    marker.classList.add('marker-planned');
+                    marker.title = `Planned jump @ ${jump.planned_time.toFixed(2)}s`;
+                }
+
+                dom.timelineRail.appendChild(marker);
+            });
+
+            // Mark crash location on horizontal rail if crashed
+            if (attempt.outcome === 'Crashed' && currentElapsed > 0) {
+                const crashMarker = document.createElement('div');
+                crashMarker.className = 'timeline-jump-marker marker-crashed';
+                crashMarker.style.left = `${cursorPct}%`;
+                crashMarker.style.width = '6px';
+                crashMarker.title = `Collision / Crash @ ${currentElapsed.toFixed(2)}s`;
+                dom.timelineRail.appendChild(crashMarker);
+            }
+        }
+
+        // --- 2. Mobile Vertical Timeline ---
+        if (dom.verticalMarkersContainer) {
+            dom.verticalMarkersContainer.innerHTML = '';
+
+            let activeItemEl = null;
+
+            jumps.forEach((jump, idx) => {
+                const item = document.createElement('div');
+                item.className = 'vertical-timeline-item';
+                item.setAttribute('data-time', jump.planned_time);
+
+                const isExecuted = jump.executed_time !== null && jump.executed_time !== undefined;
+                const isPast = currentElapsed >= jump.planned_time;
+                const isNext = !isPast && (!activeItemEl);
+
+                // Time Column
+                const timeCol = document.createElement('span');
+                timeCol.className = 'v-item-time';
+                timeCol.textContent = `${jump.planned_time.toFixed(2)}s`;
+
+                // Node/Dot Slot Column
+                const slotCol = document.createElement('div');
+                slotCol.className = 'v-item-node-slot';
+
+                const dot = document.createElement('div');
+                dot.className = 'v-node-dot';
+                if (isExecuted) {
+                    dot.classList.add('executed');
+                } else if (attempt.outcome === 'Crashed' && currentElapsed >= jump.planned_time) {
+                    dot.classList.add('crashed');
+                }
+                slotCol.appendChild(dot);
+
+                // Content / Action / Delta Column
+                const contentCol = document.createElement('div');
+                contentCol.className = 'v-item-content';
+
+                const label = document.createElement('span');
+                label.className = 'v-item-label';
+                label.textContent = `Jump #${idx + 1} (${jump.action || 'jump'})`;
+
+                const deltaBadge = document.createElement('span');
+                deltaBadge.className = 'v-item-delta';
+
+                if (isExecuted) {
+                    deltaBadge.classList.add('delta-executed');
+                    deltaBadge.textContent = `${jump.delta_ms > 0 ? '+' : ''}${jump.delta_ms}ms`;
+                } else if (attempt.outcome === 'Crashed' && currentElapsed < jump.planned_time) {
+                    deltaBadge.classList.add('delta-planned');
+                    deltaBadge.textContent = 'Unreached';
+                } else {
+                    deltaBadge.classList.add('delta-planned');
+                    deltaBadge.textContent = 'Planned';
+                }
+
+                contentCol.appendChild(label);
+                contentCol.appendChild(deltaBadge);
+
+                item.appendChild(timeCol);
+                item.appendChild(slotCol);
+                item.appendChild(contentCol);
+
+                dom.verticalMarkersContainer.appendChild(item);
+
+                if (isPast) {
+                    activeItemEl = item;
+                }
+            });
+
+            // If crashed, add a dedicated collision node in the vertical timeline
+            if (attempt.outcome === 'Crashed' && currentElapsed > 0) {
+                const crashItem = document.createElement('div');
+                crashItem.className = 'vertical-timeline-item';
+                crashItem.style.background = 'rgba(239, 68, 68, 0.1)';
+
+                const cTime = document.createElement('span');
+                cTime.className = 'v-item-time';
+                cTime.style.color = '#ef4444';
+                cTime.textContent = `${currentElapsed.toFixed(2)}s`;
+
+                const cSlot = document.createElement('div');
+                cSlot.className = 'v-item-node-slot';
+                const cDot = document.createElement('div');
+                cDot.className = 'v-node-dot crashed';
+                cSlot.appendChild(cDot);
+
+                const cContent = document.createElement('div');
+                cContent.className = 'v-item-content';
+                const cLabel = document.createElement('span');
+                cLabel.className = 'v-item-label';
+                cLabel.style.color = '#ef4444';
+                cLabel.textContent = 'Collision / Crash';
+
+                const cDelta = document.createElement('span');
+                cDelta.className = 'v-item-delta delta-crashed';
+                cDelta.textContent = 'CRASH';
+
+                cContent.appendChild(cLabel);
+                cContent.appendChild(cDelta);
+                crashItem.appendChild(cTime);
+                crashItem.appendChild(cSlot);
+                crashItem.appendChild(cContent);
+
+                // Insert crash item in chronological position
+                let inserted = false;
+                const children = dom.verticalMarkersContainer.children;
+                for (let i = 0; i < children.length; i++) {
+                    const t = parseFloat(children[i].getAttribute('data-time') || '0');
+                    if (t > currentElapsed) {
+                        dom.verticalMarkersContainer.insertBefore(crashItem, children[i]);
+                        inserted = true;
+                        break;
+                    }
+                }
+                if (!inserted) {
+                    dom.verticalMarkersContainer.appendChild(crashItem);
+                }
+                activeItemEl = crashItem;
             }
 
-            dom.timelineRail.appendChild(marker);
-        });
+            // Update Vertical Playhead Cursor Position & Time Badge
+            if (dom.verticalCursor && dom.verticalCursorBadge) {
+                dom.verticalCursorBadge.textContent = `${currentElapsed.toFixed(1)}s`;
 
-        // Mark crash location if crashed
-        if (attempt.outcome === 'Crashed' && currentElapsed > 0) {
-            const crashMarker = document.createElement('div');
-            crashMarker.className = 'timeline-jump-marker marker-crashed';
-            crashMarker.style.left = `${cursorPct}%`;
-            crashMarker.style.width = '6px';
-            crashMarker.title = `Collision / Crash @ ${currentElapsed.toFixed(2)}s`;
-            dom.timelineRail.appendChild(crashMarker);
+                if (activeItemEl) {
+                    const itemTop = activeItemEl.offsetTop;
+                    const itemHeight = activeItemEl.offsetHeight;
+                    dom.verticalCursor.style.top = `${itemTop + itemHeight / 2}px`;
+                    dom.verticalCursor.style.display = 'flex';
+
+                    // Smooth auto-scroll vertical container to keep the active playhead centered
+                    if (dom.verticalScroll) {
+                        const scrollTarget = itemTop - dom.verticalScroll.clientHeight / 2 + itemHeight / 2;
+                        dom.verticalScroll.scrollTop = Math.max(0, scrollTarget);
+                    }
+                } else {
+                    dom.verticalCursor.style.top = '10px';
+                    dom.verticalCursor.style.display = 'flex';
+                }
+            }
         }
     }
 

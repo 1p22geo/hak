@@ -165,17 +165,41 @@
                     </div>
 
                     <div class="timeline-track-wrapper">
-                        <div class="timeline-axis">
-                            <span>0.0s</span>
-                            <span>21.2s (Stage 1)</span>
-                            <span>42.5s (Ship Transition)</span>
-                            <span>63.7s (End Game)</span>
-                            <span>85.0s</span>
+                        <!-- Desktop Horizontal Timeline -->
+                        <div class="timeline-horizontal-view">
+                            <div class="timeline-axis">
+                                <span>0.0s</span>
+                                <span>21.2s (Stage 1)</span>
+                                <span>42.5s (Ship Transition)</span>
+                                <span>63.7s (End Game)</span>
+                                <span>85.0s</span>
+                            </div>
+                            <div id="timeline-rail" class="timeline-rail">
+                                <div id="timeline-cursor" class="timeline-playback-cursor"></div>
+                                <!-- Markers rendered dynamically by JS -->
+                            </div>
                         </div>
-                        <div id="timeline-rail" class="timeline-rail">
-                            <div id="timeline-cursor" class="timeline-playback-cursor"></div>
-                            <!-- Markers rendered dynamically by JS -->
+
+                        <!-- Mobile Vertical Timeline -->
+                        <div class="timeline-vertical-view">
+                            <div class="vertical-timeline-header">
+                                <span class="vth-col vth-time">Time</span>
+                                <span class="vth-col vth-rail">Progress &amp; Timing</span>
+                                <span class="vth-col vth-action">Event / Delta</span>
+                            </div>
+                            <div id="vertical-timeline-scroll" class="vertical-timeline-scroll">
+                                <div id="vertical-timeline-rail" class="vertical-timeline-rail">
+                                    <div id="vertical-timeline-cursor" class="vertical-playback-cursor">
+                                        <div class="cursor-pulse-glow"></div>
+                                        <span id="vertical-cursor-badge" class="cursor-time-badge">0.0s</span>
+                                    </div>
+                                    <div id="vertical-markers-container" class="vertical-markers-container">
+                                        <!-- Vertical nodes rendered dynamically by JS -->
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+
                         <div class="timeline-legend">
                             <div class="legend-item">
                                 <span class="legend-dot" style="background: rgba(148, 163, 184, 0.4);"></span>
