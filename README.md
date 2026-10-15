@@ -1,256 +1,218 @@
 # 🚀 Geometry Dash AI — Stereo Madness Autonomous Agent & TAS
 
-An autonomous machine-learning and Tool-Assisted Speedrun (TAS) system designed to learn, execute, and master **Geometry Dash — Stereo Madness** via non-invasive computer vision, precision hardware timing, and genetic/policy optimization.
+An autonomous machine-learning and Tool-Assisted Speedrun (TAS) system designed to learn, execute, and master **Geometry Dash — Stereo Madness** via non-invasive computer vision, precision hardware timing, and prefix-preserving reinforcement learning.
 
-The system combines real-time screen capture, OCR state extraction, sub-millisecond precision input dispatch, and a telemetry monitoring dashboard into a unified closed-loop pipeline.
+The system combines real-time screen capture, OCR HUD parsing, sub-millisecond precision input dispatch, and a real-time telemetry monitoring dashboard into a unified closed-loop pipeline.
 
 ---
 
-## 📌 Project Vision & Architecture
+## 📌 Project Vision & Philosophy
 
-The project treats Geometry Dash as a black-box environment. It does not inject DLLs, inspect process memory, or read game internals. Instead, it operates exactly like a human player with superhuman reflex precision: **it watches the screen, reads the state, computes jump timings, dispatches keyboard inputs, evaluates attempt progress, and evolves jump strategies over generations.**
+The project treats Geometry Dash as a strict black-box environment. It does **not** inject DLLs, inspect game process memory, or hook game internals. Instead, it operates exactly like a human player with superhuman reflex precision: **it captures the screen, parses in-game telemetry through OCR, maintains an immutable winning jump prefix, explores the frontier obstacle, dispatches sub-millisecond spacebar taps, and monitors progress through an interactive web telemetry cockpit.**
 
 ```mermaid
 flowchart TD
     subgraph GameEnvironment ["🎮 Geometry Dash (Stereo Madness)"]
-        GD["Game Screen & Audio"]
-        InputHook["Spacebar / Keyboard Input"]
+        GD["Game Screen (60+ FPS) & Audio"]
+        InputHook["Spacebar & Up-Arrow Keyboard Input"]
     end
 
-    subgraph Perception ["👁️ Vision & Telemetry Extraction"]
+    subgraph Perception ["👁️ Vision & Telemetry Extraction (ocr_reader.py)"]
         MSS["Ultra-Fast Screen Grabber (mss)"]
-        ROI["Interactive / Calibrated ROI Slicer"]
-        CV["OpenCV Preprocessor (Scale, Binarize, Otsu)"]
-        OCR["High-Speed Windows Media OCR Engine"]
+        ROI["Calibrated ROI Slicer (roi_config.json)"]
+        CV["OpenCV Preprocessor (Scale, Grayscale, Adaptive Threshold)"]
+        OCR["Windows Media OCR Engine (winocr)"]
     end
 
-    subgraph AgentCore ["🧠 Agent & TAS Optimization Engine"]
-        StateTracker["Attempt & State Tracker (% Progress, Attempt #, Alive/Crash)"]
-        PolicyOptimizer["Genetic Algorithm / Policy Optimizer (Jump Gene Map)"]
-        TimerEngine["Sub-Millisecond Precision Spacebar Sequencer (perf_counter)"]
+    subgraph AgentCore ["🧠 Autonomous Agent & TAS Engine (tas_engine.py)"]
+        SyncFSM["True-Zero Synchronizer & FSM (Countdown, Running, Crash, Respawn)"]
+        Optimizer["Prefix-Preserving RL Optimizer (rl_optimizer.py)"]
+        Controller["Sub-Millisecond Spacebar Dispatcher (keyboard_controller.py)"]
     end
 
-    subgraph TelemetryDashboard ["📊 Web Telemetry & Monitoring (Flask)"]
-        Store["Thread-Safe Telemetry Store"]
-        API["Real-Time Snapshot & Event API"]
-        UI["Dark Technical Dashboard (Desktop Rail & Mobile Vertical Timeline)"]
+    subgraph TelemetryCockpit ["📊 Web Telemetry & Monitoring Cockpit (Flask + Chart.js)"]
+        Store["Thread-Safe Telemetry Store (telemetry.py)"]
+        API["REST & Frame Stream API (/api/agent/frame, /api/snapshot)"]
+        UI["Dark UI Cockpit: Dual Timeline, Learning Curves & Live OCR Video"]
     end
 
     %% Flow connections
-    GD -->|"60+ FPS Video Buffer"| MSS
+    GD -->|"Display Output"| MSS
     MSS --> ROI --> CV --> OCR
-    OCR -->|"Progress %, Attempt Count, Game Mode"| StateTracker
-    StateTracker -->|"Reward / Fitness Evaluation"| PolicyOptimizer
-    PolicyOptimizer -->|"Optimal Timestamp Sequence [t1, t2, ...]"| TimerEngine
-    TimerEngine -->|"Hardware Keypress (pynput, spin-lock)"| InputHook
+    OCR -->|"Progress %, Attempt #, Time (s), Taps"| SyncFSM
+    SyncFSM -->|"Survival Time & Crash Telemetry"| Optimizer
+    Optimizer -->|"Proven Prefix + Frontier Jump Candidate"| Controller
+    Controller -->|"pynput Virtual Key Events (Hybrid Spin-Sleep)"| InputHook
 
-    StateTracker -.->|"Live Telemetry JSON Ingestion"| Store
-    PolicyOptimizer -.->|"Generational Analytics & Jump Maps"| Store
+    SyncFSM -.->|"Live State & OCR Frame Stream"| Store
+    Optimizer -.->|"Generational Curves & Jump Timings"| Store
     Store --> API --> UI
 ```
 
 ---
 
-## ⚙️ How the Complete System Will Work
+## ⚙️ How the Complete System Works
 
-When fully integrated, the system operates as a closed continuous learning loop across 5 core stages:
+When fully deployed and operating, the architecture forms an autonomous continuous learning cycle:
 
-### 1. Vision & Screen Perception Pipeline
-* **High-FPS Frame Capture**: Uses `mss` to grab video frames directly from the display buffer at 60+ FPS with minimal CPU overhead.
-* **Region of Interest (ROI) Isolation**: Using calibrated coordinate maps (or the interactive `select_roi.py` utility), the system slices key HUD areas:
-  * Progress percentage indicator (e.g. `73.49%`)
-  * Attempt counter (e.g. `Attempt 152`)
-  * Game status / Mode (e.g. `PRACTICE MODE`, `PAUSE`, `GAME OVER`)
-* **Computer Vision Preprocessing**: Slices are upscaled using cubic interpolation, converted to grayscale, and binarized with adaptive thresholding to eliminate background geometry noise and particles.
-* **Optical Character Recognition (OCR)**: Processed frames pass through native OS OCR engines (e.g., Windows Media OCR / Tesseract) to parse clean numeric telemetry (`float` level progress, `int` attempt index) in under 15ms.
+### 1. Optical Perception & HUD Extraction (`src/hak/ocr_reader.py`)
+* **Screen Buffer Grabber**: Leverages `mss` for high-frequency (60+ FPS) capture of the desktop display.
+* **Calibrated Multi-ROI Slicing**: Using coordinates saved in `roi_config.json` (calibrated via the interactive `select_roi.py` snipping overlay), the reader isolates 4 key in-game HUD indicators:
+  * **Level Progress %** (e.g., `73.49%`)
+  * **Attempt Counter** (e.g., `Attempt 152`)
+  * **In-Game Timer** (e.g., `12.45s`)
+  * **Jump / Tap Counter** (e.g., `38`)
+* **OpenCV Preprocessing**: Crops are upscaled 2.5× with cubic interpolation, converted to grayscale, and binarized with thresholding to eliminate background geometry noise, particles, and level pulses.
+* **High-Speed OCR**: Processes frames through native OS OCR engines (Windows Media OCR / `winocr`) in under 15ms without requiring external Tesseract binaries.
+* **Annotated Video Feed**: Generates live JPEG frames with color-coded bounding boxes around all active ROIs for streaming directly into the web dashboard.
 
-### 2. Attempt Lifecycle & State Machine
-The agent runs an internal finite-state machine (FSM):
-* **IDLE / MENU**: Detects level start button or loading screen.
-* **RUNNING**: Game begins at `t0 = 0.000s`. The agent monitors incremental progress.
-* **COLLISION / CRASH**: Detects when level progress halts or the attempt counter increments. The crash timestamp and final percentage are logged as negative fitness penalties.
-* **COMPLETED (100%)**: Detects 100% completion milestone, triggering victory logs and policy persistence.
-* **RESTART**: Automatically waits for the death animation or triggers rapid restart to initiate the next attempt.
+### 2. Prefix-Preserving Barrier RL Optimizer (`src/hak/rl_optimizer.py`)
+Stereo Madness is an 85-second deterministic rhythm obstacle course. Standard reinforcement learning algorithms that mutate early jump timings suffer from catastrophic forgetting. The system implements a **Prefix-Preserving Barrier RL Algorithm**:
 
-### 3. Sub-Millisecond Input & TAS Dispatcher
-Geometry Dash requires frame-perfect jump execution:
-* **Hybrid Spin-Sleep Timer**: Built on high-resolution system timers (`time.perf_counter()`). The dispatcher sleeps for coarse intervals and switches to CPU spin-locking within the last 1.5ms to achieve sub-millisecond input precision.
-* **Input Injection**: Uses low-level keyboard controllers (`pynput` / OS virtual key events) to emit microsecond `press` and `release` spacebar commands.
-* **Execution Jitter Logging**: Computes timing discrepancy (`actual_ms - target_ms`) and streams jitter offsets (e.g. `Δ +0.8ms`) to telemetry.
+$$\text{Core Rule: "Don't fix what ain't broke!"}$$
 
-### 4. Machine Learning & Optimization Engine
-Stereo Madness is an 85-second deterministic rhythm obstacle course. The learning system optimizes a **Jump Policy Vector**:
-* **Gene Representation**: An ordered chromosome of jump timestamps `[t_1, t_2, ..., t_n]` and hold durations.
-* **Fitness Function**:
-  $$\text{Fitness} = (\text{Completion \%} \times 100) + \text{Bonus}_{\text{Coin}} - \text{Penalty}_{\text{Jitter}} + \text{LevelCompleteBonus}$$
-* **Evolutionary Cycle**:
-  1. **Population Run**: Evaluates a batch of candidate policies (e.g., population size = 10 per generation).
-  2. **Frontier Extension**: Preserves successful jump timings up to the furthest crash point.
-  3. **Mutation & Exploration**: Introduces micro-mutations ($\pm 5\text{ms}$ to $\pm 30\text{ms}$) and searches for the next valid jump window past the previous barrier.
-  4. **Crossover**: Blends high-performing timing sequences across generations.
+1. **Immutable Proven Prefix**: Once a sequence of jumps $[j_1, j_2, \dots, j_k]$ successfully clears obstacles up to time $T$, that prefix is **permanently frozen**. It is repeated on every subsequent run with exact timing. It is **never jittered, never shifted, and never deleted**.
+2. **Targeted Frontier Exploration**: The optimizer focuses mutations strictly on the **frontier barrier** that caused the latest crash ($T_{\text{crash}}$).
+3. **Adaptive Mutation Modes**:
+   * **Insert Jump**: Places a new candidate jump ahead of the barrier ($T_{\text{crash}} - \Delta t$).
+   * **Tune Frontier**: Shifts the timing of the most recent jump by small delta steps ($\pm 10\text{ms}$ to $\pm 35\text{ms}$).
+   * **Remove Trailing Jump**: Deletes a speculative jump if it caused an immediate collision.
+4. **Noise-Immune Advancement**: A candidate jump is permanently locked into the proven prefix only when survival time increases by a meaningful delta ($\ge 0.30\text{s}$).
 
-### 5. Real-Time Telemetry & Control Dashboard
-A Flask web application serves as the visual control room:
-* **Uptime & State Badging**: Real-time display of agent state (`Running`, `Evaluating`, `Paused`, `Error`), connection status (`Connected` vs `Simulated`), and uptime.
-* **Generation & Learning Analytics**: Real-time Chart.js graphs tracking Best Completion % vs. Average Completion % and Fitness Evolution across generations.
-* **Dual-View Adaptive Timeline**:
-  * **Desktop View**: Sleek horizontal 85.0s rail showing planned obstacles, executed jumps with offset deltas, and live playhead position.
-  * **Mobile View**: Chronological vertical feed auto-scrolling with the active playhead, preventing marker overlap on small screens.
-* **CV Frame Hook**: Neutral placeholder ready to bind MJPEG/WebRTC streams directly from the screen capture pipeline.
-* **Event Stream**: Chronological color-coded log of agent events, record milestones, collisions, and jump executions.
+### 3. Sub-Millisecond Input Sequencer (`src/hak/keyboard_controller.py`)
+Geometry Dash physics require frame-accurate input execution:
+* **Hybrid Spin-Sleep Timing Engine**: Built on OS high-resolution monotonic clocks (`time.perf_counter()`). The controller sleeps for coarse intervals and spins the CPU during the final 1.5ms to eliminate OS thread scheduling jitter.
+* **Dual-Key Virtual Dispatch**: Emits synchronized `Spacebar` and `Up Arrow` presses via `pynput` with microsecond accuracy.
+* **Immediate Crash Abort**: When OCR signals a collision, the jump dispatcher instantly interrupts pending scheduled inputs, preventing unwanted mid-air inputs on respawn.
+
+### 4. True-Zero Synchronization & TAS Engine (`src/hak/tas_engine.py`)
+Coordinates perception, decision-making, and execution across an autonomous finite-state machine (FSM):
+* **COUNTDOWN (10s Grace Period)**: Provides a countdown allowing the user to switch into Geometry Dash, select the level, and position the window.
+* **RESPAWN / ZERO-SYNC**: Automatically tracks when the in-game timer resets to `0.00s` or attempt counter increments, calibrating `t0` to eliminate phase offsets.
+* **RUNNING**: Executes the proven prefix and frontier jump candidate while continuously reading level progress.
+* **CRASH EVALUATION**: Captures the collision timestamp, evaluates whether survival time improved, updates the genetic elite baseline, and initiates the next candidate run.
+* **COMPLETION (100%)**: Detects the end of Stereo Madness (`85.0s`), locks the full TAS run, and transitions to victory state.
+
+### 5. Web Telemetry & Monitoring Cockpit (`dashboard/`, `app.py`)
+A unified Flask web application functions as the real-time mission control room:
+* **Live In-Game OCR Video Stream**: Embedded `<img src="/api/agent/frame">` displays live game captures with annotated ROI bounding boxes and reading diagnostics.
+* **Real-Time Experiment Metrics**: Tracks current generation, attempt count, all-time best survival time, total level completions, and objective fitness.
+* **Dual-View Adaptive Jump Timeline**:
+  * **Desktop (>768px)**: Horizontal 85.0s rail showing planned obstacles, executed jumps with offset deltas, and live playhead.
+  * **Mobile (≤768px)**: Automatically switches to a vertical top-to-bottom chronological list with auto-scrolling playhead tracking, preventing overlapping marker clutter on narrow viewports.
+* **Live Operator Controls**:
+  * `▶ Start RL Agent`: Triggers the configurable 10-second countdown grace period.
+  * `⏸ Pause Agent` / `⏹ Halt Agent`: Instantly pauses or cancels execution.
+  * `↺ Reset Elite Baseline`: Clears proven jumps to train a fresh policy from scratch.
+  * `🎯 Configure ROIs`: Opens an in-dashboard modal to view, edit, or launch the interactive snipping tool.
 
 ---
 
-## 🗂️ Project Structure
+## 🗂️ Project Architecture & Modules
 
 ```
 hak/
-├── app.py                     # Entry point for Web Dashboard & Telemetry Server
-├── pyproject.toml             # Project build configuration & dependencies (uv)
-├── requirements.txt           # Dashboard dependencies (Flask, Pytest)
+├── app.py                         # Application CLI entry point & Flask server
+├── pyproject.toml                 # uv project configuration & dependencies
+├── requirements.txt               # Dashboard and runtime dependencies
+├── roi_config.json                # Calibrated screen ROI coordinates (X, Y, W, H)
 │
-├── src/                       # Production Agent & TAS modules (Integration target)
-│   └── hak/
-│       ├── __init__.py        # Package init
-│       ├── capture.py         # [Target] Screen grabber & frame worker (mss / OpenCV)
-│       ├── reader.py          # [Target] OCR engine & HUD state extraction
-│       ├── agent.py           # [Target] Genetic optimizer & jump policy coordinator
-│       └── controller.py      # [Target] Sub-millisecond spacebar sequencer
+├── src/hak/                       # Autonomous Agent & TAS Core Modules
+│   ├── __init__.py                # Package entry point
+│   ├── tas_engine.py              # Main TAS Orchestrator & True-Zero FSM
+│   ├── rl_optimizer.py            # Prefix-Preserving Barrier RL Optimizer
+│   ├── ocr_reader.py              # Screen grabber (mss), OpenCV preprocessor & WinOCR
+│   └── keyboard_controller.py     # Sub-millisecond spin-sleep spacebar dispatcher
 │
-├── PoCs/                      # Validated Proof-of-Concept modules
-│   ├── gd_ocr_poc.py          # Screen Reader & Windows Media OCR PoC
-│   ├── select_roi.py          # Interactive DPI-aware screen ROI selector
-│   ├── spacebar_timer.py      # Sub-millisecond spin-sleep spacebar dispatcher
-│   └── test_spacebar_timer.py # Timing accuracy and parser tests
-│
-├── dashboard/                 # Flask Telemetry Engine
-│   ├── __init__.py            # Flask app factory (create_app)
-│   ├── routes.py              # REST API & WebSocket/snapshot routes
-│   ├── telemetry.py           # Thread-safe in-memory TelemetryStore
-│   ├── schemas.py             # Telemetry data schemas & DTOs
-│   └── simulator.py           # Standalone mock telemetry generator
+├── dashboard/                     # Web Telemetry Backend
+│   ├── __init__.py                # Application factory (create_app)
+│   ├── routes.py                  # API routes (Status, Frame, Controls, Snapshots)
+│   ├── telemetry.py               # Thread-safe in-memory TelemetryStore
+│   ├── schemas.py                 # Telemetry DTOs & data schemas
+│   └── simulator.py               # Fallback mock telemetry generator
 │
 ├── templates/
-│   └── dashboard.html         # Responsive web dashboard UI
+│   └── dashboard.html             # Responsive dark telemetry cockpit UI
 │
 ├── static/
-│   ├── css/
-│   │   └── dashboard.css      # Dark technical theme with mobile responsive rules
+│   ├── css/dashboard.css          # Dark technical theme with mobile responsive rules
 │   └── js/
-│       ├── chart.min.js       # Local Chart.js library
-│       └── dashboard.js       # Polling engine, Chart.js updates & dual timeline
+│       ├── chart.min.js           # Local Chart.js library
+│       └── dashboard.js           # Polling loop, live video updater & dual timeline
 │
-└── tests/
-    └── test_dashboard.py      # Dashboard & API automated tests
+├── PoCs/                          # Standalone Proof-of-Concepts & Tools
+│   ├── gd_ocr_poc.py              # Standalone screen reader & WinOCR tester
+│   ├── select_roi.py              # Interactive snipping tool for calibrating ROIs
+│   ├── spacebar_timer.py          # Standalone keyboard timer benchmarks
+│   └── test_spacebar_timer.py     # Timing accuracy unit tests
+│
+└── tests/                         # Automated Test Suite
+    ├── test_dashboard.py          # Flask routes, API endpoints & mock simulation tests
+    └── test_rl_tas.py             # RL optimizer, screen reader & keyboard controller tests
 ```
 
 ---
 
-## 🔄 End-to-End Execution Flow (Future Integration)
+## 🚀 Getting Started & Execution
 
-When launching the finished system, the components collaborate seamlessly:
+### Prerequisites
+* **OS**: Windows 10/11 (required for native Windows Media OCR and hardware key dispatch).
+* **Python**: 3.11+ (managed via `uv` or standard Python virtual environment).
+* **Display**: Geometry Dash running in Windowed or Borderless Fullscreen mode.
 
-```
-[ Operator starts Dashboard ]
-         │
-         ▼
-python app.py  ───► Spawns Flask Web UI on http://127.0.0.1:5000
-         │
-[ Operator launches Agent Runner ]
-         │
-         ▼
-python -m hak.agent --level "Stereo Madness" --dashboard-url http://127.0.0.1:5000
-         │
-         ├── 1. Calibrates screen coordinates & hooks ROI
-         ├── 2. Connects to Dashboard (switches status to "Connected")
-         ├── 3. Enters Attempt Evaluation Loop:
-         │      ├── Captures t0 on level start
-         │      ├── Fires planned spacebar presses via spin-sleep timer
-         │      ├── OCR parses real-time % progress
-         │      ├── Detects crash or win
-         │      └── Posts attempt metrics & jump events to /api/telemetry/ingest
-         └── 4. Evaluates Generation:
-                ├── Ranks fitness scores across population
-                ├── Mutates jump chromosome
-                └── Repeats next generation
-```
-
----
-
-## 🔌 Telemetry Integration Contract
-
-The dashboard exposes an ingestion endpoint allowing the game agent to stream data without tight coupling:
-
-### Ingestion Endpoint: `POST /api/telemetry/ingest`
-
-#### Example Payload: Attempt Progress & Crash
-```json
-{
-  "session": {
-    "agent_status": "Running",
-    "current_generation": 8,
-    "current_attempt": 72,
-    "best_completion": 84.50,
-    "best_fitness": 1120.4
-  },
-  "attempt": {
-    "attempt_number": 72,
-    "generation": 8,
-    "level_progress": 84.50,
-    "elapsed_time": 71.82,
-    "outcome": "Crashed",
-    "latest_action": "Jump! (Δ +0.4ms)",
-    "planned_jumps_count": 35,
-    "executed_jumps_count": 35,
-    "jumps": [
-      {
-        "planned_time": 1.12,
-        "executed_time": 1.1204,
-        "action": "jump",
-        "delta_ms": 0.4
-      }
-    ],
-    "fitness": 1056.25
-  },
-  "event": {
-    "category": "record",
-    "message": "★ New record progress: 84.5% on attempt #72 (Triple Spike)",
-    "severity": "success"
-  }
-}
-```
-
----
-
-## 🛠️ Development & Testing
-
-### Running the Dashboard (Standalone with Simulator)
+### 1. Installation
+Using `uv`:
 ```bash
-python3 app.py
+git clone https://github.com/1p22geo/hak.git
+cd hak
+uv sync
 ```
-Visit `http://127.0.0.1:5000` to inspect live mock training curves, responsive jump timelines, and event logs.
 
-### Testing Proof-of-Concepts (PoCs)
-* **Spacebar Precision Timer**:
-  ```bash
-  python PoCs/spacebar_timer.py --dry-run -t 500,1000,1500
-  ```
-* **Interactive Screen ROI Selector**:
-  ```bash
-  python PoCs/select_roi.py
-  ```
-* **OCR Screen Reader Test**:
-  ```bash
-  python PoCs/gd_ocr_poc.py
-  ```
+### 2. Calibrating Screen Regions of Interest (ROIs)
+Before running the agent, verify or calibrate where the HUD elements appear on your display:
+```bash
+uv run python PoCs/select_roi.py
+```
+Click and drag over the HUD elements to generate precise `(x, y, w, h)` coordinates. These are saved to `roi_config.json`.
 
-### Running Automated Test Suite
+### 3. Launching the Agent & Telemetry Cockpit
+Start the unified application:
+```bash
+# Standard Launch (starts dashboard on http://127.0.0.1:5000 with 10s countdown)
+uv run python app.py
+
+# Launch with Stereo Madness seed jumps pre-loaded
+uv run python app.py --seed-madness
+
+# Launch in Dry-Run mode (monitors game, logs jumps, but sends no physical keypresses)
+uv run python app.py --dry-run
+
+# Launch in Mock Mode (runs full pipeline synthetically without Geometry Dash open)
+uv run python app.py --mock
+```
+
+Open your browser at:
+```
+http://127.0.0.1:5000
+```
+Use the control bar to start the countdown, monitor the live OCR camera feed, inspect real-time jump execution offsets, and observe generational learning curves.
+
+---
+
+## 🧪 Testing & Verification
+
+Run the automated test suite:
 ```bash
 uv run python -m pytest
 ```
-Validates telemetry ingestion, snapshot endpoints, schema models, and UI template delivery.
+
+The test suite validates:
+* **RL Optimizer Convergence**: Prefix preservation, survival delta thresholds, and frontier mutation strategies.
+* **OCR & Frame Generation**: Synthetic frame generation, ROI cropping, and annotated JPEG encoding.
+* **Keyboard Scheduler**: Sub-millisecond timing precision and emergency cancellation upon collision.
+* **Dashboard API**: Telemetry snapshots, real-time status endpoints, and live camera feed delivery.
 
 ---
 
 ## 👥 Authors & Hackathon Team
-* **1p22geo** & Team — Geometry Dash TAS / Machine-Learning System.
+* **1p22geo** & Team — Geometry Dash TAS / Reinforcement Learning System.
