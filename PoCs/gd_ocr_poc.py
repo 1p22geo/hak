@@ -25,10 +25,18 @@ except ImportError:
 # Windows Media OCR (wbudowany w Windows 10/11)
 try:
     import winocr
-    from PIL import Image
-    from winrt.windows.media.ocr import OcrEngine
 except ImportError:
     winocr = None
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
+try:
+    from winrt.windows.media.ocr import OcrEngine
+except ImportError:
+    OcrEngine = None
 
 
 class ScreenReaderPoC:
@@ -42,7 +50,7 @@ class ScreenReaderPoC:
 
     def _detect_best_language(self) -> str:
         """Automatycznie dobiera dostępny język Windows OCR."""
-        if not winocr:
+        if not winocr or OcrEngine is None:
             return "en"
         try:
             available = [x.language_tag for x in OcrEngine.available_recognizer_languages]
@@ -59,7 +67,7 @@ class ScreenReaderPoC:
         KROK 1 & 2: Robi screenshot i ładuje do OpenCV (numpy array BGR).
         """
         if not self.sct:
-            raise RuntimeError("Zainstaluj mss: pip install mss")
+            raise RuntimeError("Zainstaluj mss: uv add mss")
 
         monitor = self.sct.monitors[monitor_index]
         screenshot = self.sct.grab(monitor)
@@ -108,12 +116,33 @@ class ScreenReaderPoC:
         KROK 4: Rozpoznawanie tekstu z wycinka.
         Używa wbudowanego Windows OCR (bardzo szybki, bez tesseract.exe).
         """
-        if not winocr:
-            raise RuntimeError("Zainstaluj winocr: pip install winocr")
+        if not winocr or OcrEngine is None:
+            raise RuntimeError(
+                "Windows OCR is not available in this environment. "
+                "On Windows, install it with: uv add winocr pywinrt mss pillow opencv-python"
+            )
+        if Image is None:
+            raise RuntimeError("Pillow is required for OCR preprocessing: uv add pillow")
 
         pil_img = Image.fromarray(image_np)
-        res = asyncio.run(winocr.recognize_pil(pil_img, self.language))
-        text = " ".join([line.text for line in res.lines]).strip()
+
+        try:
+            result = winocr.recognize_pil(pil_img, self.language)
+        except TypeError:
+            # Some winocr versions expect a different call shape; retry with the
+            # language omitted when it is not accepted as a keyword argument.
+            result = winocr.recognize_pil(pil_img)
+
+        # winocr may return either a native coroutine or a WinRT IAsyncOperation.
+        # Only one of these is valid for `asyncio.run()`, so normalize both forms.
+        if hasattr(result, "get"):
+            result = result.get()
+        elif hasattr(result, "__await__") and not asyncio.iscoroutine(result):
+            result = asyncio.run(result)
+        elif asyncio.iscoroutine(result):
+            result = asyncio.run(result)
+
+        text = " ".join([line.text for line in result.lines]).strip()
         return text
 
     # ===============================================================
