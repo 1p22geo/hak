@@ -7,7 +7,15 @@ authors = [
     { name = "1p22geo", email = "1p22geodecki@gmail.com" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "flask>=3.1.3",
+    "mss>=9.0.3",
+    "opencv-python>=5.0.0.93",
+    "pillow>=11.3.0",
+    "pynput>=1.7.6",
+    "winocr>=0.0.15",
+    "winocr>=0.0.15",
+]
 
 [project.scripts]
 hak = "hak:main"
