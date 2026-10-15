@@ -14,6 +14,7 @@ dependencies = [
     "pillow>=11.3.0",
     "pynput>=1.7.6",
     "winocr>=0.0.15",
+    "winocr>=0.0.15",
 ]
 
 [project.scripts]
