@@ -154,6 +154,24 @@ def test_rl_optimizer_mutation_and_evaluation():
     assert len(optimizer.locked_jumps) >= 1
 
 
+def test_generation_rollover_keeps_completed_generation_recordable():
+    """A completed generation must not be reset before its record is saved."""
+    optimizer = RLTASOptimizer(seed_jumps=[], attempts_per_gen=2)
+
+    for measured_time in (1.05, 1.85):
+        candidate = optimizer.generate_next_candidate()
+        optimizer.evaluate_attempt(candidate, measured_time=measured_time, outcome="Crashed")
+
+    record = optimizer.get_generation_record()
+    assert record.generation == 1
+    assert record.attempts_count == 2
+    assert record.best_completion == round(1.85 / 85.0 * 100, 2)
+
+    next_candidate = optimizer.generate_next_candidate()
+    assert next_candidate.generation == 2
+    assert optimizer.gen_attempts_count == 0
+
+
 
 def test_tas_engine_lifecycle_and_mock_run():
     """Verify TASEngine execution in mock mode."""
@@ -336,5 +354,3 @@ def test_failed_seed_hints_are_not_frozen_as_proven():
     # Must explore near the first spike, not append after 47.5s
     assert len(c2.jumps) == 1
     assert 0.5 <= c2.jumps[0] <= 1.05
-
-

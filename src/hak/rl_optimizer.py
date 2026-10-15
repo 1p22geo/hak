@@ -176,11 +176,14 @@ class RLTASOptimizer:
            failed barrier attempts, leaving all prior jumps [:-1] strictly immutable.
         """
         self.total_attempts += 1
-        self.attempt_in_generation += 1
 
-        if self.attempt_in_generation > self.attempts_per_gen:
+        # Roll over only after the previous generation has been evaluated.  The
+        # engine persists the generation record immediately after evaluation,
+        # so advancing while creating the last candidate would reset the
+        # counters before that record is saved.
+        if self.gen_attempts_count >= self.attempts_per_gen:
             self.current_generation += 1
-            self.attempt_in_generation = 1
+            self.attempt_in_generation = 0
             self.gen_attempts_count = 0
             # Carry global best forward so charts don't falsely regress to ~0 each gen
             self.gen_best_time = self.best_time
@@ -188,6 +191,8 @@ class RLTASOptimizer:
             self.gen_best_fitness = self.best_candidate.fitness
             self.gen_fitness_sum = 0.0
             self.gen_success_count = 0
+
+        self.attempt_in_generation += 1
 
         # Attempt 1: optionally probe soft seed hints (not proven until survived)
         if self.total_attempts == 1 and len(self.hint_jumps) > 0:
