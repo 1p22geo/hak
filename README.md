@@ -1,183 +1,106 @@
-# Geometry Dash TAS / Machine-Learning Dashboard
+# Geometry Dash TAS / Reinforcement Learning System
 
-Monitoring and visual control room for the Python-based Geometry Dash AI / TAS project focused on **Stereo Madness**.
+A unified, controllable **Tool-Assisted Speedrun (TAS)** and **Reinforcement Learning (RL)** system for **Geometry Dash** (focused on *Stereo Madness*).
 
-Built with **Flask**, **Chart.js**, and an in-memory thread-safe telemetry store. The dashboard works standalone out-of-the-box with a mock telemetry simulator and defines a contract for connecting the real OpenCV / ML agent.
+Built with **Windows Media OCR (`winocr`)**, **`mss` screen grabber**, high-precision **`pynput` keyboard controller**, an **Evolutionary Strategy (1+1)-ES mutation optimizer**, and a live **Flask + Chart.js web telemetry dashboard**.
 
 ---
 
 ## 1. Quickstart
 
-### Prerequisites
-- Python 3.10+
-- Flask (`pip install -r requirements.txt`)
-- pytest (for automated tests)
+### Launching the RL TAS Controller
 
-### Launching the Dashboard
-
-Run the standalone server:
+Run the unified interface:
 ```bash
-python3 app.py
+python app.py
 ```
-Open your browser at:
-```
-http://127.0.0.1:5000
+Or via uv:
+```bash
+uv run python app.py
 ```
 
-By default, the server runs with the **Mock Telemetry Simulator** enabled, showing live generation progression, simulated jump timings, attempts, and event logging.
+### What Happens on Launch:
+1. **10-Second Grace Period Countdown**: The terminal and Web UI immediately begin a 10-second countdown allowing you to focus your Geometry Dash game window and enter a level (*Stereo Madness*).
+2. **Autonomous RL Loop Engages**:
+   - The agent schedules spacebar taps with sub-millisecond precision.
+   - Screen capture (`mss`) and Windows Media OCR read:
+     - **Percentage** (`0.0% - 100.0%`)
+     - **Attempt Count** (e.g. `Attempt 152`)
+     - **In-Game Time** (e.g. `12.4s`)
+     - **Tap / Jump Count** (e.g. `15`)
+   - Upon crash or completion, the RL policy mutates the tap sequence (timing jitter, jump insertion before collision points, bad jump pruning).
+   - If the mutation **improved** the run, it is saved as the new elite baseline. If it **worsened**, it reverts back to the best sequence.
+3. **Web Dashboard**: Access `http://127.0.0.1:5000` to monitor live attempt telemetry, jump timing rail, generation curves, chronological event logs, and live OCR annotated gameplay frames.
 
 ---
 
-## 2. Project Architecture
+## 2. CLI Options
+
+| Flag | Description | Default |
+|---|---|---|
+| `--countdown <N>` | Set grace countdown duration in seconds | `10.0` |
+| `--no-countdown` | Skip countdown and engage agent immediately | `False` |
+| `--dry-run` | Test spacebar timing without dispatching physical keypresses | `False` |
+| `--mock` | Run in synthetic mode simulating GD obstacles & screen | `False` |
+| `--seed-madness` | Seed initial candidate with known Stereo Madness obstacle timings | `False` |
+| `--select-rois` | Launch interactive snipping tool to configure OCR ROIs | `False` |
+| `--no-auto-start` | Wait for user to click "Start RL Agent" in Web UI | `False` |
+| `--port <port>` | Web dashboard port | `5000` |
+
+---
+
+## 3. Architecture
 
 ```
 hak/
-├── app.py                     # Application entry point and server startup
-├── requirements.txt           # Python dependencies
+├── app.py                     # Unified entrypoint (CLI + Server + 10s countdown)
+├── roi_config.json            # Persisted screen coordinates for the 4 OCR ROIs
+├── src/hak/
+│   ├── ocr_reader.py          # Windows Media OCR & mss reader (pct, attempt, time, taps)
+│   ├── keyboard_controller.py # High-precision spacebar dispatcher & async scheduler
+│   ├── rl_optimizer.py        # (1+1)-ES evolutionary mutation engine (improved vs worsened)
+│   └── tas_engine.py          # Master orchestrator: countdown, attempt loop, telemetry
 ├── dashboard/
-│   ├── __init__.py            # Application factory (create_app)
-│   ├── routes.py              # Flask endpoints (UI + JSON API)
-│   ├── telemetry.py           # Thread-safe in-memory TelemetryStore
-│   ├── simulator.py           # Background mock telemetry generator
-│   └── schemas.py             # DTOs, Enums, and data models
+│   ├── __init__.py            # Flask app factory connecting TASEngine & TelemetryStore
+│   ├── routes.py              # Web UI, agent control endpoints, and live frame stream
+│   ├── telemetry.py           # In-memory thread-safe state store
+│   └── schemas.py             # Data models (AttemptState, SessionState, GenerationRecord)
 ├── templates/
-│   └── dashboard.html         # Responsive dark-theme dashboard UI
+│   └── dashboard.html         # Responsive web UI with countdown banner & live controls
 ├── static/
-│   ├── css/
-│   │   └── dashboard.css      # Dark technical styling
-│   └── js/
-│       ├── chart.min.js       # Local Chart.js library
-│       └── dashboard.js       # Client polling, Chart.js updates & timeline
+│   ├── css/dashboard.css      # Dark technical styling
+│   └── js/dashboard.js        # Live polling, Chart.js updates & control triggers
+├── PoCs/                      # Original proof-of-concept building blocks
 └── tests/
-    └── test_dashboard.py      # Automated test suite
+    ├── test_dashboard.py      # Dashboard & API unit tests
+    └── test_rl_tas.py         # End-to-end OCR, keyboard controller, optimizer & engine tests
 ```
 
 ---
 
-## 3. Telemetry Data Contract & Endpoints
+## 4. Web Control API
 
-The dashboard polls JSON endpoints every second without reloading the browser.
+The dashboard exposes REST endpoints for interactive control:
 
-### A. Core Endpoints
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `GET /` | GET | Main dashboard web interface |
-| `GET /api/status` | GET | Current session state and active attempt telemetry |
-| `GET /api/metrics` | GET | Historical generation curves (best & average completion, fitness) |
-| `GET /api/events` | GET | Chronological event logs with optional `limit` and `since_id` |
-| `GET /api/snapshot` | GET | Consolidated snapshot of status, metrics, attempt & events |
-| `POST /api/telemetry/ingest` | POST | Ingestion endpoint for external real game agents |
-| `POST /api/controls/monitoring` | POST | Dashboard-level simulator controls (`pause`, `resume`, `disconnect`, `error`) |
-| `POST /api/events/clear` | POST | Clear displayed event history |
-
-### B. Telemetry Schema
-
-#### Session State (`SessionState`)
-```json
-{
-  "session_id": "sim_stereo_madness_1760515000",
-  "project_name": "Geometry Dash AI / Stereo Madness",
-  "connection_state": "Simulated",    // "Connected" | "Disconnected" | "Simulated"
-  "agent_status": "Running",          // "Idle" | "Initializing" | "Running" | "Paused" | "Evaluating" | "Error"
-  "is_simulated": true,
-  "session_start_time": "2026-10-15T08:00:00Z",
-  "uptime_seconds": 124.5,
-  "last_update": "2026-10-15T08:02:04Z",
-  "current_generation": 6,
-  "current_attempt": 54,
-  "total_attempts": 54,
-  "successful_completions": 0,
-  "best_completion": 48.25,
-  "best_fitness": 648.12,
-  "live_frame_url": null
-}
-```
-
-#### Attempt State (`AttemptState`)
-```json
-{
-  "attempt_number": 54,
-  "generation": 6,
-  "level_progress": 34.2,             // Percentage 0.0 - 100.0
-  "elapsed_time": 29.1,               // Elapsed seconds in current attempt
-  "outcome": "Running",               // "Running" | "Crashed" | "Completed" | "Unknown"
-  "latest_action": "Jump! (Δ +8.2ms)",
-  "planned_jumps_count": 22,
-  "executed_jumps_count": 18,
-  "jumps": [
-    {
-      "planned_time": 1.12,           // In seconds from level start
-      "executed_time": 1.128,         // In seconds (or null if upcoming)
-      "action": "jump",
-      "delta_ms": 8.0                 // Execution timing offset in milliseconds
-    }
-  ],
-  "fitness": 427.5
-}
-```
-
-#### Event Object (`TelemetryEvent`)
-```json
-{
-  "id": 14,
-  "timestamp": "2026-10-15T08:02:04Z",
-  "category": "jump",                 // "system" | "agent" | "attempt" | "jump" | "record" | "error"
-  "message": "Executed jump at 1.13s (offset +8.0ms)",
-  "severity": "info",                 // "info" | "success" | "warning" | "error"
-  "details": null
-}
-```
-
----
-
-## 4. How to Integrate the Real Game Agent
-
-When the OpenCV capture and TAS jump execution system is ready, integrate it in one of two ways:
-
-### Option 1: HTTP Push (Recommended)
-Disable the mock simulator (`export GD_ENABLE_SIMULATOR=0`) and have your Python agent push updates via `POST /api/telemetry/ingest`:
-
-```python
-import requests
-
-DASHBOARD_URL = "http://127.0.0.1:5000/api/telemetry/ingest"
-
-# Report an attempt crash or progress
-requests.post(DASHBOARD_URL, json={
-    "session": {
-        "agent_status": "Running",
-        "current_generation": 3,
-        "current_attempt": 24,
-        "best_completion": 62.8
-    },
-    "event": {
-        "category": "attempt",
-        "message": "Attempt #24 reached 62.8% (Ship Sequence)",
-        "severity": "info"
-    }
-})
-```
-
-### Option 2: Shared In-Memory Store Adapter
-If the agent runs in the same Python process as Flask, simply call methods on the shared `TelemetryStore`:
-
-```python
-from dashboard.telemetry import TelemetryStore
-from dashboard.schemas import AttemptState, TelemetryEvent
-
-store.update_attempt(AttemptState(...))
-store.add_event(TelemetryEvent(...))
-```
+- `POST /api/agent/start`: Start the agent (accepts `{"countdown": 10.0}`)
+- `POST /api/agent/pause`: Pause active agent
+- `POST /api/agent/resume`: Resume paused agent
+- `POST /api/agent/stop`: Halt agent immediately
+- `POST /api/agent/reset`: Reset elite baseline tap sequence
+- `GET /api/agent/status`: Live agent state, countdown, and OCR readings
+- `GET /api/agent/frame`: Live annotated JPEG frame with OCR bounding boxes
+- `GET /api/agent/rois`: Get current ROI bounding boxes
+- `POST /api/agent/rois`: Update and persist ROI coordinates
+- `POST /api/agent/select-roi`: Trigger Windows Snipping Tool overlay on screen
 
 ---
 
 ## 5. Running Automated Tests
 
-Run the test suite using `pytest`:
+Run the full test suite with `pytest`:
 
 ```bash
-python3 -m pytest tests/
+uv run python -m pytest
 ```
 
-All 7 test cases validate page loading, all API endpoints, simulator progression, event ingestion, and error resilience.
+All 18 tests validate OCR parsing, keyboard timing, RL mutation improvements/regressions, engine lifecycles, and dashboard routes.

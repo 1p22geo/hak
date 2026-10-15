@@ -965,12 +965,66 @@ body {
     border-color: var(--accent-cyan);
 }
 
+.btn-success {
+    background-color: var(--status-success-dim);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: var(--status-success);
+}
+
+.btn-success:hover:not(:disabled) {
+    background-color: rgba(16, 185, 129, 0.3);
+    border-color: var(--status-success);
+}
+
+.btn-danger {
+    background-color: var(--status-danger-dim);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: var(--status-danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: rgba(239, 68, 68, 0.3);
+    border-color: var(--status-danger);
+}
+
+/* Countdown Banner Overlay */
+.countdown-banner {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(0, 242, 254, 0.2));
+    border: 1px solid var(--accent-cyan);
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.3);
+    border-radius: var(--radius-md);
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: pulse-border 1.5s infinite alternate;
+}
+
+@keyframes pulse-border {
+    0% { box-shadow: 0 0 10px rgba(0, 242, 254, 0.2); }
+    100% { box-shadow: 0 0 25px rgba(0, 242, 254, 0.6); }
+}
+
+.countdown-banner.hidden {
+    display: none !important;
+}
+
+.countdown-digit {
+    font-size: 28px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--accent-cyan);
+    margin-right: 12px;
+}
+
 .control-note {
     font-size: 11px;
     color: var(--text-muted);
     font-style: italic;
     margin-left: auto;
 }
+
 
 /* Footer */
 footer {

@@ -66,6 +66,23 @@
         btnClearEvents: document.getElementById('btn-clear-events'),
         btnSimError: document.getElementById('btn-sim-error'),
         btnSimDisconnect: document.getElementById('btn-sim-disconnect'),
+
+        // Real TAS Agent Controls
+        countdownBanner: document.getElementById('countdown-banner'),
+        countdownNumber: document.getElementById('countdown-number'),
+        btnCancelCountdown: document.getElementById('btn-cancel-countdown'),
+        btnStartAgent: document.getElementById('btn-start-agent'),
+        btnPauseAgent: document.getElementById('btn-pause-agent'),
+        btnStopAgent: document.getElementById('btn-stop-agent'),
+        btnResetBest: document.getElementById('btn-reset-best'),
+        btnConfigRois: document.getElementById('btn-config-rois'),
+        liveFrameImg: document.getElementById('live-frame-img'),
+        ocrReadingsLive: document.getElementById('ocr-readings-live'),
+        roiModal: document.getElementById('roi-modal'),
+        roiInputsContainer: document.getElementById('roi-inputs-container'),
+        btnRoiSave: document.getElementById('btn-roi-save'),
+        btnRoiClose: document.getElementById('btn-roi-close'),
+        btnRoiSelectInteractive: document.getElementById('btn-roi-select-interactive'),
     };
 
     /**
@@ -314,8 +331,8 @@
         dom.currentGen.textContent = session.current_generation ?? '--';
         dom.currentAttempt.textContent = session.current_attempt ?? '--';
         dom.bestCompletion.textContent = session.best_completion !== null && session.best_completion !== undefined 
-            ? `${session.best_completion}%` 
-            : '--';
+            ? `${session.best_completion.toFixed(2)}s` 
+            : '0.00s';
         dom.totalAttempts.textContent = session.total_attempts ?? '--';
         dom.successCount.textContent = session.successful_completions ?? 0;
         dom.bestFitness.textContent = session.best_fitness !== null && session.best_fitness !== undefined 
@@ -346,9 +363,11 @@
             dom.attemptOutcome.style.borderColor = 'rgba(0, 242, 254, 0.4)';
         }
 
-        const prog = attempt.level_progress ?? 0;
-        dom.levelProgressText.textContent = prog.toFixed(1);
-        dom.levelProgressBar.style.width = `${Math.min(100, Math.max(0, prog))}%`;
+        const survivalSec = attempt.level_progress ?? 0;
+        dom.levelProgressText.textContent = survivalSec.toFixed(2);
+        // Stereo Madness 85.0s timeline progress fill
+        const barPct = Math.min(100, Math.max(0, (survivalSec / 85.0) * 100));
+        dom.levelProgressBar.style.width = `${barPct}%`;
 
         dom.attemptElapsedTime.textContent = `${attempt.elapsed_time ? attempt.elapsed_time.toFixed(2) : '0.00'}s`;
         dom.latestAction.textContent = attempt.latest_action || 'None';
@@ -615,6 +634,8 @@
         }
     }
 
+    let lastFrameTime = 0;
+
     /**
      * Main polling function fetching consolidated telemetry snapshot
      */
@@ -639,6 +660,60 @@
             appendEvents(data.events);
 
             lastSuccessfulUpdate = new Date();
+
+            // Poll TAS Agent Status
+            try {
+                const agentRes = await fetch('/api/agent/status');
+                if (agentRes.ok) {
+                    const agentStatus = await agentRes.json();
+                    if (agentStatus.available) {
+                        // Handle Countdown Banner
+                        if (agentStatus.is_counting_down && dom.countdownBanner) {
+                            dom.countdownBanner.classList.remove('hidden');
+                            if (dom.countdownNumber) {
+                                dom.countdownNumber.textContent = Math.ceil(agentStatus.countdown_remaining);
+                            }
+                            if (dom.agentText) {
+                                dom.agentText.textContent = `Countdown (${Math.ceil(agentStatus.countdown_remaining)}s)`;
+                            }
+                        } else if (dom.countdownBanner) {
+                            dom.countdownBanner.classList.add('hidden');
+                            if (dom.agentText) {
+                                if (agentStatus.paused) dom.agentText.textContent = 'Paused';
+                                else if (agentStatus.running) dom.agentText.textContent = 'Running';
+                                else dom.agentText.textContent = 'Idle';
+                            }
+                        }
+
+                        // Update Pause/Resume button label
+                        if (dom.btnPauseAgent) {
+                            dom.btnPauseAgent.textContent = agentStatus.paused ? '▶ Resume Agent' : '⏸ Pause Agent';
+                        }
+
+                        // Update Connection Badge
+                        if (dom.connectionBadge && dom.connectionText) {
+                            dom.connectionBadge.className = 'status-badge badge-connected';
+                            dom.connectionText.textContent = agentStatus.mock_mode
+                                ? 'Simulated Agent'
+                                : (agentStatus.dry_run ? 'Live (Dry-Run)' : 'Live (Real GD)');
+                        }
+
+                        // Update Live OCR text
+                        if (dom.ocrReadingsLive && agentStatus.ocr_telemetry) {
+                            const o = agentStatus.ocr_telemetry;
+                            dom.ocrReadingsLive.textContent = `Pct: ${o.percentage ?? 0}% | Att: ${o.attempt ?? 1} | Time: ${o.time ?? 0}s | Taps: ${o.tap_count ?? 0}`;
+                        }
+
+                        // Update Live Frame Image (throttled to ~750ms)
+                        if (dom.liveFrameImg && (Date.now() - lastFrameTime > 750)) {
+                            dom.liveFrameImg.src = `/api/agent/frame?t=${Date.now()}`;
+                            lastFrameTime = Date.now();
+                        }
+                    }
+                }
+            } catch (agentErr) {
+                // Non-fatal if agent endpoint is temporarily busy
+            }
         } catch (err) {
             console.warn('[Dashboard] Telemetry poll failed:', err);
             dom.pollLatency.textContent = 'ERR';
@@ -651,6 +726,176 @@
      * Set up UI controls & actions
      */
     function setupControls() {
+        // Start RL Agent with 10s Countdown
+        if (dom.btnStartAgent) {
+            dom.btnStartAgent.addEventListener('click', async () => {
+                try {
+                    await fetch('/api/agent/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ countdown: 10.0 })
+                    });
+                    pollTelemetry();
+                } catch (err) {
+                    console.error('Failed to start agent:', err);
+                }
+            });
+        }
+
+        // Pause / Resume Agent
+        if (dom.btnPauseAgent) {
+            dom.btnPauseAgent.addEventListener('click', async () => {
+                try {
+                    const statusRes = await fetch('/api/agent/status');
+                    const statusData = await statusRes.json();
+                    const action = statusData.paused ? 'resume' : 'pause';
+                    await fetch(`/api/agent/${action}`, { method: 'POST' });
+                    pollTelemetry();
+                } catch (err) {
+                    console.error('Failed to toggle agent pause:', err);
+                }
+            });
+        }
+
+        // Stop / Halt Agent
+        if (dom.btnStopAgent) {
+            dom.btnStopAgent.addEventListener('click', async () => {
+                try {
+                    await fetch('/api/agent/stop', { method: 'POST' });
+                    pollTelemetry();
+                } catch (err) {
+                    console.error('Failed to stop agent:', err);
+                }
+            });
+        }
+
+        // Cancel Countdown Button
+        if (dom.btnCancelCountdown) {
+            dom.btnCancelCountdown.addEventListener('click', async () => {
+                try {
+                    await fetch('/api/agent/stop', { method: 'POST' });
+                    if (dom.countdownBanner) dom.countdownBanner.classList.add('hidden');
+                    pollTelemetry();
+                } catch (err) {
+                    console.error('Failed to abort countdown:', err);
+                }
+            });
+        }
+
+        // Reset Best Elite Baseline
+        if (dom.btnResetBest) {
+            dom.btnResetBest.addEventListener('click', async () => {
+                if (confirm('Reset elite baseline tap sequence?')) {
+                    try {
+                        await fetch('/api/agent/reset', { method: 'POST' });
+                        pollTelemetry();
+                    } catch (err) {
+                        console.error('Failed to reset elite baseline:', err);
+                    }
+                }
+            });
+        }
+
+        // ROI Modal Open
+        if (dom.btnConfigRois && dom.roiModal) {
+            dom.btnConfigRois.addEventListener('click', async () => {
+                try {
+                    const res = await fetch('/api/agent/rois');
+                    const data = await res.json();
+                    const rois = data.rois || {};
+
+                    if (dom.roiInputsContainer) {
+                        dom.roiInputsContainer.innerHTML = '';
+                        for (const [name, coords] of Object.entries(rois)) {
+                            const row = document.createElement('div');
+                            row.style.display = 'grid';
+                            row.style.gridTemplateColumns = '120px 1fr';
+                            row.style.alignItems = 'center';
+                            row.style.gap = '8px';
+
+                            const label = document.createElement('span');
+                            label.style.fontFamily = 'var(--font-mono)';
+                            label.style.fontSize = '12px';
+                            label.textContent = name;
+
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.id = `roi-input-${name}`;
+                            input.value = coords.join(', ');
+                            input.style.background = 'var(--bg-panel-subtle)';
+                            input.style.border = '1px solid var(--border-subtle)';
+                            input.style.color = '#fff';
+                            input.style.padding = '4px 8px';
+                            input.style.borderRadius = '4px';
+                            input.style.fontFamily = 'var(--font-mono)';
+                            input.style.fontSize = '12px';
+
+                            row.appendChild(label);
+                            row.appendChild(input);
+                            dom.roiInputsContainer.appendChild(row);
+                        }
+                    }
+                    dom.roiModal.style.display = 'flex';
+                } catch (err) {
+                    console.error('Failed to fetch ROIs:', err);
+                }
+            });
+        }
+
+        // ROI Modal Close
+        if (dom.btnRoiClose && dom.roiModal) {
+            dom.btnRoiClose.addEventListener('click', () => {
+                dom.roiModal.style.display = 'none';
+            });
+        }
+
+        // ROI Modal Save
+        if (dom.btnRoiSave && dom.roiModal) {
+            dom.btnRoiSave.addEventListener('click', async () => {
+                const keys = ['percentage', 'attempt_count', 'time', 'tap_count'];
+                const updated = {};
+                for (const k of keys) {
+                    const el = document.getElementById(`roi-input-${k}`);
+                    if (el) {
+                        const parts = el.value.split(',').map(s => parseInt(s.trim(), 10));
+                        if (parts.length === 4 && parts.every(n => !isNaN(n))) {
+                            updated[k] = parts;
+                        }
+                    }
+                }
+                try {
+                    await fetch('/api/agent/rois', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updated)
+                    });
+                    dom.roiModal.style.display = 'none';
+                    pollTelemetry();
+                } catch (err) {
+                    console.error('Failed to save ROIs:', err);
+                }
+            });
+        }
+
+        // Interactive Snipping Tool ROI Selection
+        if (dom.btnRoiSelectInteractive) {
+            dom.btnRoiSelectInteractive.addEventListener('click', async () => {
+                const roiName = prompt('Enter ROI to select (percentage, attempt_count, time, tap_count):', 'percentage');
+                if (roiName) {
+                    try {
+                        await fetch('/api/agent/select-roi', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ roi_name: roiName.trim() })
+                        });
+                        alert(`Interactive ROI snipping tool initiated for "${roiName}". Use mouse to drag rectangle.`);
+                    } catch (err) {
+                        console.error('Failed to launch interactive ROI selection:', err);
+                    }
+                }
+            });
+        }
+
         if (dom.btnToggleMonitoring) {
             dom.btnToggleMonitoring.addEventListener('click', async () => {
                 const nextAction = isMonitoringActive ? 'pause' : 'resume';

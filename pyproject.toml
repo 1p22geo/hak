@@ -13,6 +13,7 @@ dependencies = [
     "opencv-python>=5.0.0.93",
     "pillow>=11.3.0",
     "pynput>=1.7.6",
+    "pytest>=9.1.1",
     "winocr>=0.0.15",
     "winocr>=0.0.15",
 ]

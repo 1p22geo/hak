@@ -1,2 +1,15 @@
+"""
+Geometry Dash RL TAS & Telemetry System.
+"""
+from __future__ import annotations
+
+import sys
+
+
 def main() -> None:
-    print("Hello from hak!")
+    from app import run_app
+    run_app(sys.argv[1:])
+
+
+if __name__ == "__main__":
+    main()

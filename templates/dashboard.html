@@ -16,18 +16,18 @@
             <div class="brand-logo-icon">GD</div>
             <div class="brand-text-wrapper">
                 <div class="brand-title">Geometry Dash AI</div>
-                <div class="brand-subtitle">Stereo Madness Experimenter</div>
+                <div class="brand-subtitle">Stereo Madness RL TAS Controller</div>
             </div>
         </div>
 
         <div class="topbar-meta">
             <div id="connection-badge" class="status-badge badge-simulated">
                 <span class="pulse-dot"></span>
-                <span id="connection-text">Simulated Telemetry</span>
+                <span id="connection-text">Awaiting Live Agent</span>
             </div>
 
             <div id="agent-badge" class="status-badge badge-agent-running">
-                <span id="agent-text">Running</span>
+                <span id="agent-text">Idle</span>
             </div>
 
             <div class="topbar-stat">
@@ -50,6 +50,18 @@
     <!-- Main Content Grid -->
     <main class="dashboard-container">
 
+        <!-- Live Countdown Alert Banner -->
+        <div id="countdown-banner" class="countdown-banner hidden">
+            <div style="display: flex; align-items: center;">
+                <span id="countdown-number" class="countdown-digit">10</span>
+                <div>
+                    <div style="font-weight: 700; color: #ffffff; font-size: 15px;">SWITCH TO GEOMETRY DASH NOW!</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Start your level (Stereo Madness). TAS RL agent will engage when timer expires.</div>
+                </div>
+            </div>
+            <button id="btn-cancel-countdown" class="btn btn-danger" style="padding: 4px 10px;">Abort Countdown</button>
+        </div>
+
         <!-- B. Main Progress & Metrics Overview -->
         <section class="panel">
             <div class="panel-header">
@@ -63,19 +75,19 @@
                 <div class="metric-card">
                     <span class="metric-label">Current Generation</span>
                     <span id="metric-current-gen" class="metric-value highlight-cyan">--</span>
-                    <span class="metric-sub">Population size: 10</span>
+                    <span class="metric-sub">Policy generation</span>
                 </div>
 
                 <div class="metric-card">
                     <span class="metric-label">Current Attempt</span>
                     <span id="metric-current-attempt" class="metric-value">--</span>
-                    <span class="metric-sub">In current generation</span>
+                    <span class="metric-sub">In current run</span>
                 </div>
 
                 <div class="metric-card">
-                    <span class="metric-label">Best Progress</span>
-                    <span id="metric-best-completion" class="metric-value highlight-green">--%</span>
-                    <span class="metric-sub">All-time record</span>
+                    <span class="metric-label">Best Survival Time</span>
+                    <span id="metric-best-completion" class="metric-value highlight-green">0.00s</span>
+                    <span class="metric-sub">Elite barrier record</span>
                 </div>
 
                 <div class="metric-card">
@@ -114,20 +126,20 @@
                 <!-- Big Attempt Progress Bar -->
                 <div class="level-progress-wrapper">
                     <div class="progress-header">
-                        <span class="metric-label">Stereo Madness Progress</span>
+                        <span class="metric-label">Stereo Madness Survival Time (85.0s Level)</span>
                         <div class="progress-pct-display">
-                            <span id="level-progress-text">0.0</span><small>%</small>
+                            <span id="level-progress-text">0.00</span><small>s</small>
                         </div>
                     </div>
                     <div class="progress-bar-track">
                         <div id="level-progress-bar" class="progress-bar-fill"></div>
                     </div>
                     <div class="progress-milestones">
-                        <span>0% (Intro)</span>
-                        <span>30% (Spikes Section)</span>
-                        <span>50% (Ship Sequence)</span>
-                        <span>70% (Triple Spikes)</span>
-                        <span>100% (Complete)</span>
+                        <span>0.0s (Intro)</span>
+                        <span>25.5s (Spikes)</span>
+                        <span>42.5s (Ship Sequence)</span>
+                        <span>60.0s (Triples)</span>
+                        <span>85.0s (Cleared)</span>
                     </div>
                 </div>
 
@@ -160,7 +172,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                         <span class="metric-label" style="margin-bottom: 0;">Jump Timing Rail (Stereo Madness 85.0s Timeline)</span>
                         <span id="timeline-status-note" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">
-                            Synthetic Obstacle Timings
+                            Obstacle Timings & Candidate Sequence
                         </span>
                     </div>
 
@@ -222,39 +234,34 @@
                 </div>
             </div>
 
-            <!-- Future Live Frame Preview Placeholder -->
+            <!-- Live Frame Preview Panel -->
             <div class="panel">
                 <div class="panel-header">
                     <span class="panel-title">
-                        <span class="panel-title-icon">◎</span> Live Frame Telemetry
+                        <span class="panel-title-icon">◎</span> Live Frame Telemetry & OCR
                     </span>
-                    <span class="panel-badge">OpenCV Hook Placeholder</span>
+                    <span class="panel-badge">WinOCR + MSS</span>
                 </div>
 
-                <div class="frame-preview-box">
-                    <div class="preview-grid-overlay"></div>
-                    <span class="preview-badge">SIMULATED FEED</span>
-                    <div class="preview-radar"></div>
-                    <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">
-                        Awaiting OpenCV Stream
+                <div class="frame-preview-box" style="padding: 6px; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px;">
+                    <img id="live-frame-img" src="/api/agent/frame" alt="Live GD OCR Stream" style="max-width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--border-accent); display: block;" />
+                    <div style="position: absolute; top: 12px; left: 12px; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 4px; font-size: 10px; font-family: var(--font-mono); color: var(--accent-cyan);">
+                        OCR FEED
                     </div>
-                    <p style="font-size: 11px; max-width: 260px; line-height: 1.4;">
-                        When screen capture & frame processing modules go live, stream endpoint will bind directly here via MJPEG / canvas hook.
-                    </p>
                 </div>
 
                 <div class="preview-specs-list">
                     <div class="preview-spec-row">
-                        <span>Target Resolution:</span>
-                        <span style="font-family: var(--font-mono); color: var(--text-secondary);">1280 × 720 @ 60 FPS</span>
+                        <span>OCR Target ROIs:</span>
+                        <span id="ocr-status-summary" style="font-family: var(--font-mono); color: var(--text-secondary);">Percentage, Attempt, Time, Taps</span>
                     </div>
                     <div class="preview-spec-row">
-                        <span>Inference Pipeline:</span>
-                        <span style="font-family: var(--font-mono); color: var(--text-secondary);">Stereo Madness Feature Extractor</span>
+                        <span>Latest OCR Telemetry:</span>
+                        <span id="ocr-readings-live" style="font-family: var(--font-mono); color: var(--accent-cyan);">Pct: 0% | Att: 1 | Time: 0s</span>
                     </div>
                     <div class="preview-spec-row">
-                        <span>Integration Hook:</span>
-                        <span style="font-family: var(--font-mono); color: var(--accent-cyan);">POST /api/telemetry/ingest</span>
+                        <span>RL Policy State:</span>
+                        <span id="rl-mutation-badge" style="font-family: var(--font-mono); color: var(--status-success);">Active (1+1)-ES Mutation</span>
                     </div>
                 </div>
             </div>
@@ -304,39 +311,55 @@
             </div>
         </section>
 
-        <!-- G. Run Configuration & Controls (Strictly Dashboard/Simulator monitoring) -->
+        <!-- G. Run Configuration & Controls -->
         <section class="panel">
             <div class="panel-header">
                 <span class="panel-title">
-                    <span class="panel-title-icon">⚙</span> Dashboard Monitoring Controls
+                    <span class="panel-title-icon">⚙</span> Geometry Dash TAS Control Console
                 </span>
                 <span class="panel-badge">Operator Console</span>
             </div>
 
             <div class="controls-bar">
-                <button id="btn-toggle-monitoring" class="btn btn-cyan">Pause Monitoring</button>
-                <button id="btn-sim-error" class="btn">Simulate Agent Error</button>
-                <button id="btn-sim-disconnect" class="btn">Simulate Disconnect</button>
-
-                <button class="btn" disabled title="Game execution controls are isolated from telemetry dashboard">
-                    Start Game Agent (Unavailable)
-                </button>
-                <button class="btn" disabled title="Game execution controls are isolated from telemetry dashboard">
-                    Halt Agent (Unavailable)
-                </button>
+                <button id="btn-start-agent" class="btn btn-success">▶ Start RL Agent (10s Countdown)</button>
+                <button id="btn-pause-agent" class="btn btn-cyan">⏸ Pause Agent</button>
+                <button id="btn-stop-agent" class="btn btn-danger">⏹ Halt Agent</button>
+                <button id="btn-reset-best" class="btn">↺ Reset Elite Baseline</button>
+                <button id="btn-config-rois" class="btn">🎯 Configure ROIs</button>
+                <button id="btn-toggle-monitoring" class="btn" style="display:none;">Pause Monitoring</button>
 
                 <div class="control-note">
-                    * Agent execution controls remain isolated to the game automation daemon.
+                    * RL Agent mutates tap sequences, tests them, and keeps improvements automatically.
                 </div>
             </div>
         </section>
 
     </main>
 
+    <!-- ROI Configuration Modal -->
+    <div id="roi-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 999; align-items: center; justify-content: center;">
+        <div style="background: var(--bg-panel); border: 1px solid var(--border-accent); border-radius: var(--radius-lg); padding: 24px; max-width: 520px; width: 90%;">
+            <h3 style="margin-bottom: 12px; color: var(--accent-cyan); display: flex; align-items: center; gap: 8px;">
+                <span>🎯</span> Screen Regions of Interest (ROIs)
+            </h3>
+            <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+                Specify coordinates <code>(X, Y, Width, Height)</code> for game screen reading or launch the snipping overlay tool.
+            </p>
+            <div id="roi-inputs-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+                <!-- Populated dynamically -->
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+                <button id="btn-roi-select-interactive" class="btn btn-cyan">Snipping Tool Selection</button>
+                <button id="btn-roi-save" class="btn btn-success">Save Coordinates</button>
+                <button id="btn-roi-close" class="btn">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer>
-        <div>Geometry Dash TAS / Machine-Learning System — Telemetry Subsystem</div>
-        <div>Flask 3.x Telemetry Engine &bull; Endpoint: <code>/api/snapshot</code></div>
+        <div>Geometry Dash TAS / Reinforcement Learning System — Telemetry &amp; Control</div>
+        <div>Flask 3.x Engine &bull; Endpoint: <code>/api/snapshot</code></div>
     </footer>
 
     <!-- Pass server initial data safely -->

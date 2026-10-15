@@ -21,7 +21,12 @@ def create_app(config: dict | None = None) -> Flask:
     )
 
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "gd-ai-stereo-madness-secret")
-    app.config["ENABLE_SIMULATOR"] = True
+    app.config["ENABLE_SIMULATOR"] = False
+    app.config["ENABLE_TAS_AGENT"] = True
+    app.config["COUNTDOWN_SECONDS"] = 10.0
+    app.config["DRY_RUN"] = False
+    app.config["MOCK_MODE"] = False
+    app.config["SEED_MADNESS"] = False
 
     if config:
         app.config.update(config)
@@ -30,15 +35,31 @@ def create_app(config: dict | None = None) -> Flask:
     store = TelemetryStore()
     app.config["TELEMETRY_STORE"] = store
 
-    # Initialize and optionally start simulator
-    if app.config.get("ENABLE_SIMULATOR", True):
-        simulator = MockTelemetrySimulator(store=store, seed=42)
-        app.config["SIMULATOR"] = simulator
-        # Auto-start simulator background thread unless disabled (e.g. during specific unit tests)
-        if app.config.get("AUTO_START_SIMULATOR", True):
-            simulator.start()
-    else:
+    # Initialize TAS Engine if enabled
+    if app.config.get("ENABLE_TAS_AGENT", True):
+        from src.hak.tas_engine import TASEngine
+        tas_engine = TASEngine(
+            store=store,
+            dry_run=app.config.get("DRY_RUN", False),
+            mock_mode=app.config.get("MOCK_MODE", False),
+            seed_with_stereo_madness=app.config.get("SEED_MADNESS", False),
+        )
+        app.config["TAS_ENGINE"] = tas_engine
         app.config["SIMULATOR"] = None
+
+        if app.config.get("AUTO_START_TAS_AGENT", False):
+            countdown = float(app.config.get("COUNTDOWN_SECONDS", 10.0))
+            tas_engine.start(countdown_seconds=countdown)
+    else:
+        app.config["TAS_ENGINE"] = None
+        # Initialize and optionally start simulator if fallback requested
+        if app.config.get("ENABLE_SIMULATOR", False):
+            simulator = MockTelemetrySimulator(store=store, seed=42)
+            app.config["SIMULATOR"] = simulator
+            if app.config.get("AUTO_START_SIMULATOR", True):
+                simulator.start()
+        else:
+            app.config["SIMULATOR"] = None
 
     # Register blueprints
     app.register_blueprint(dashboard_bp)
