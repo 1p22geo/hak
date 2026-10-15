@@ -136,7 +136,13 @@
                     scales: {
                         x: {
                             grid: { color: gridColor },
-                            ticks: { color: tickColor, font: { family: 'ui-monospace, monospace', size: 10 } },
+                            ticks: {
+                                color: tickColor,
+                                font: { family: 'ui-monospace, monospace', size: 10 },
+                                autoSkip: true,
+                                maxTicksLimit: 8,
+                                maxRotation: 0,
+                            },
                             title: { display: true, text: 'Generation', color: tickColor, font: { size: 11 } }
                         },
                         y: {
@@ -204,7 +210,13 @@
                     scales: {
                         x: {
                             grid: { color: gridColor },
-                            ticks: { color: tickColor, font: { family: 'ui-monospace, monospace', size: 10 } },
+                            ticks: {
+                                color: tickColor,
+                                font: { family: 'ui-monospace, monospace', size: 10 },
+                                autoSkip: true,
+                                maxTicksLimit: 8,
+                                maxRotation: 0,
+                            },
                             title: { display: true, text: 'Generation', color: tickColor, font: { size: 11 } }
                         },
                         y: {

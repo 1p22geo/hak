@@ -14,7 +14,7 @@
     <header class="topbar">
         <div class="brand-section">
             <div class="brand-logo-icon">GD</div>
-            <div>
+            <div class="brand-text-wrapper">
                 <div class="brand-title">Geometry Dash AI</div>
                 <div class="brand-subtitle">Stereo Madness Experimenter</div>
             </div>
@@ -132,7 +132,7 @@
                 </div>
 
                 <!-- Live Metrics Row -->
-                <div class="metrics-grid" style="margin-top: 18px; grid-template-columns: repeat(5, 1fr);">
+                <div class="metrics-grid live-metrics-row">
                     <div class="metric-card">
                         <span class="metric-label">Attempt Time</span>
                         <span id="attempt-elapsed-time" class="metric-value" style="font-size: 18px;">0.00s</span>
@@ -219,16 +219,16 @@
                     </p>
                 </div>
 
-                <div style="margin-top: 14px; font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
-                    <div style="display: flex; justify-content: space-between;">
+                <div class="preview-specs-list">
+                    <div class="preview-spec-row">
                         <span>Target Resolution:</span>
                         <span style="font-family: var(--font-mono); color: var(--text-secondary);">1280 × 720 @ 60 FPS</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between;">
+                    <div class="preview-spec-row">
                         <span>Inference Pipeline:</span>
                         <span style="font-family: var(--font-mono); color: var(--text-secondary);">Stereo Madness Feature Extractor</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between;">
+                    <div class="preview-spec-row">
                         <span>Integration Hook:</span>
                         <span style="font-family: var(--font-mono); color: var(--accent-cyan);">POST /api/telemetry/ingest</span>
                     </div>
