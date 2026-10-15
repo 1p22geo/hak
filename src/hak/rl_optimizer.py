@@ -6,7 +6,6 @@ from typing import List, Optional, Tuple, Dict, Any
 from dashboard.schemas import GenerationRecord, current_iso_time
 
 STEREO_MADNESS_TOTAL_SECONDS = 85.0
-MIN_MEANINGFUL_TIME_DELTA = 0.30
 
 # Known obstacle timings for Stereo Madness as optional jump seed
 STEREO_MADNESS_SEED_JUMPS = [
@@ -65,10 +64,10 @@ class RLTASOptimizer:
     2. Frontier Exploration Only:
        The agent ONLY adds or modifies a single candidate jump AFTER the proven prefix,
        targeting the active obstacle barrier that caused the latest crash.
-    3. Noise-Immune Evaluation:
-       If the frontier jump clears the obstacle (gaining >= 0.30s survival time),
-       that jump is permanently locked into proven_jumps.
-       If it fails, proven_jumps is untouched and the next candidate tests a different offset.
+    3. Improvement Evaluation:
+       Any genuine increase in survival time permanently locks the newly survived
+       prefix into proven_jumps. If an attempt does not improve the record,
+       proven_jumps is untouched and the next candidate tests a different offset.
     """
 
     def __init__(
@@ -76,11 +75,9 @@ class RLTASOptimizer:
         seed_jumps: Optional[List[float]] = None,
         attempts_per_gen: int = 10,
         random_seed: Optional[int] = None,
-        min_meaningful_delta: float = MIN_MEANINGFUL_TIME_DELTA,
     ):
         self.rng = random.Random(random_seed)
         self.attempts_per_gen = max(1, attempts_per_gen)
-        self.min_meaningful_delta = min_meaningful_delta
 
         # Soft timing hints only — NEVER treated as proven until actually survived.
         self.hint_jumps: List[float] = sorted(seed_jumps) if seed_jumps else []
@@ -270,9 +267,8 @@ class RLTASOptimizer:
     ) -> Tuple[bool, str, float]:
         """
         Evaluate candidate attempt result against current best survival time.
-        Enforces:
-        - Improvements >= 0.30s lock the frontier jump into proven_jumps permanently.
-        - Failures (< 0.30s) preserve proven_jumps untouched and discard the frontier jump.
+        Any increase in survival time locks the newly survived prefix into
+        proven_jumps; equal or lower results leave the proven prefix unchanged.
         """
         completed = (measured_time >= STEREO_MADNESS_TOTAL_SECONDS) or (outcome == "Completed")
         fitness = self.compute_fitness(measured_time, completed=completed)
@@ -308,7 +304,7 @@ class RLTASOptimizer:
             self.frontier_barrier = max(1.05, measured_time)
             # Only lock jumps that actually cleared past the opening barrier.
             # Failed seed hints / failed first probes must NOT become "proven".
-            if measured_time >= 1.05 + self.min_meaningful_delta:
+            if measured_time > 1.05:
                 self.proven_jumps = self._jumps_survived_before_crash(
                     candidate.jumps, measured_time
                 )
@@ -319,9 +315,8 @@ class RLTASOptimizer:
             self.history.append(candidate.copy())
             return True, "INITIAL_BASELINE", round(measured_time, 2)
 
-        # 2. Case A: MEANINGFUL IMPROVEMENT (Obstacle Cleared!)
-        # In GD, jumping an obstacle yields at least +0.30s survival time gain
-        if delta_time >= self.min_meaningful_delta or completed:
+        # 2. Case A: any improvement (or a completion) becomes the new elite.
+        if delta_time > 0.0 or completed:
             self.meaningful_improvements_count += 1
             self.best_candidate = candidate.copy()
             self.best_time = measured_time
@@ -342,10 +337,9 @@ class RLTASOptimizer:
             self.history.append(candidate.copy())
             return True, "IMPROVED", round(delta_time, 2)
 
-        # 3. Case B: SAME OBSTACLE COLLISION (Noise / Failed Frontier Jump)
-        # Proven prefix is 100% UNTOUCHED. Failed frontier jump is discarded.
+        # 3. Case B: same or lower result. The proven prefix is untouched.
         self.consecutive_barrier_failures += 1
-        if abs(delta_time) < self.min_meaningful_delta:
+        if delta_time == 0.0:
             self.history.append(candidate.copy())
             return False, "SAME_OBSTACLE", round(delta_time, 2)
 

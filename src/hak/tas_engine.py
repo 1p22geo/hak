@@ -38,8 +38,7 @@ class TASEngine:
     2. Reliable Jump Dispatch: Never aborts scheduled jumps due to single-frame OCR glitches.
     3. True-Zero Respawn Synchronization: Aligns t0 with in-game 0.00s timer to prevent
        premature or missed jump executions.
-    4. Meaningful Improvement Tracking: Only locks new frontier jumps when survival time
-       improves by >= 0.30s.
+    4. Improvement Tracking: Locks new frontier jumps whenever survival time improves.
     """
 
     def __init__(
@@ -171,6 +170,7 @@ class TASEngine:
             self.store.update_session(
                 best_completion=0.0,
                 best_fitness=0.0,
+                reset_best=True,
             )
             self.store.add_event(
                 TelemetryEvent(
@@ -308,7 +308,7 @@ class TASEngine:
                 if self._stop_event.is_set():
                     break
 
-                # 4. Evaluate RL mutation with meaningful improvement filter
+                # 4. Evaluate the candidate and retain every improvement
                 is_improved, eval_label, delta_s = self.optimizer.evaluate_attempt(
                     candidate=candidate,
                     measured_time=survival_time,

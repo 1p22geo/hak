@@ -55,6 +55,16 @@ def test_api_status_endpoint(client, app):
     assert data["session"]["agent_status"] == "Running"
 
 
+def test_best_session_metrics_do_not_regress_during_new_attempt(client, app):
+    """Live attempt telemetry must not overwrite the elite record."""
+    store = app.config["TELEMETRY_STORE"]
+    store.update_session(best_completion=1.12, best_fitness=11.2)
+    store.update_session(best_completion=0.98, best_fitness=9.8)
+
+    assert store.session.best_completion == 1.12
+    assert store.session.best_fitness == 11.2
+
+
 def test_api_metrics_endpoint(client, app):
     """Test /api/metrics endpoint for generations data."""
     store = app.config["TELEMETRY_STORE"]

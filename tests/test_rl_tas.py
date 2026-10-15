@@ -115,17 +115,16 @@ def test_rl_optimizer_mutation_and_evaluation():
     assert c2.attempt_number == 2
     assert len(c2.jumps) >= 1
 
-    # Case A: Noise / Same Obstacle (crashed at 1.08s -> delta +0.03s < 0.30s threshold)
+    # Case A: Small improvement (crashed at 1.08s -> delta +0.03s)
     is_improved_noise, label_noise, delta_noise = optimizer.evaluate_attempt(
         candidate=c2,
         measured_time=1.08,
         outcome="Crashed",
     )
-    assert is_improved_noise is False
-    assert label_noise == "SAME_OBSTACLE"
-    # Elite baseline remains protected from noise!
-    assert optimizer.best_time == 1.05
-    assert optimizer.best_candidate.attempt_number == 1
+    assert is_improved_noise is True
+    assert label_noise == "IMPROVED"
+    assert optimizer.best_time == 1.08
+    assert optimizer.best_candidate.attempt_number == 2
 
     # Case B: Regression / Worsened (crashed earlier at 0.50s)
     c3 = optimizer.generate_next_candidate(last_crash_time=1.05)
@@ -138,7 +137,7 @@ def test_rl_optimizer_mutation_and_evaluation():
     assert label_worse == "WORSENED"
     assert optimizer.best_time == 1.05
 
-    # Case C: Meaningful Improvement! (Cleared spike, survived to 1.85s -> delta +0.80s >= 0.30s)
+    # Case C: Larger improvement (cleared spike, survived to 1.85s)
     c4 = optimizer.generate_next_candidate(last_crash_time=1.05)
     is_improved_better, label_better, delta_better = optimizer.evaluate_attempt(
         candidate=c4,

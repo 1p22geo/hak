@@ -32,8 +32,17 @@ class TelemetryStore:
 
     def update_session(self, **kwargs) -> None:
         with self._lock:
+            reset_best = kwargs.pop("reset_best", False)
             for k, v in kwargs.items():
                 if hasattr(self.session, k):
+                    if (
+                        not reset_best
+                        and k in {"best_completion", "best_fitness"}
+                        and v is not None
+                    ):
+                        current = getattr(self.session, k)
+                        if current is not None and v < current:
+                            continue
                     setattr(self.session, k, v)
             self.session.last_update = current_iso_time()
 

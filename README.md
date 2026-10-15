@@ -77,7 +77,7 @@ $$\text{Core Rule: "Don't fix what ain't broke!"}$$
    * **Insert Jump**: Places a new candidate jump ahead of the barrier ($T_{\text{crash}} - \Delta t$).
    * **Tune Frontier**: Shifts the timing of the most recent jump by small delta steps ($\pm 10\text{ms}$ to $\pm 35\text{ms}$).
    * **Remove Trailing Jump**: Deletes a speculative jump if it caused an immediate collision.
-4. **Noise-Immune Advancement**: A candidate jump is permanently locked into the proven prefix only when survival time increases by a meaningful delta ($\ge 0.30\text{s}$).
+4. **Improvement Advancement**: A candidate jump is permanently locked into the proven prefix whenever survival time increases.
 
 ### 3. Sub-Millisecond Input Sequencer (`src/hak/keyboard_controller.py`)
 Geometry Dash physics require frame-accurate input execution:
