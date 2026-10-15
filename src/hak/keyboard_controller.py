@@ -26,18 +26,15 @@ class KeyboardController:
         self._active_thread: Optional[threading.Thread] = None
 
     def press_space(self, hold_seconds: float = 0.045) -> None:
-        """Execute a physical spacebar and up-arrow press and release."""
+        """Execute a physical spacebar press and release."""
         if self.dry_run or not self._keyboard:
             return
 
         try:
-            # Press both Space and Up Arrow (GD supports both natively)
             self._keyboard.press(Key.space)
-            self._keyboard.press(Key.up)
             if hold_seconds > 0:
                 time.sleep(hold_seconds)
             self._keyboard.release(Key.space)
-            self._keyboard.release(Key.up)
         except Exception as exc:
             print(f"[KeyboardController] Press error: {exc}")
 
