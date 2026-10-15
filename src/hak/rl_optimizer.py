@@ -82,8 +82,10 @@ class RLTASOptimizer:
         self.attempts_per_gen = max(1, attempts_per_gen)
         self.min_meaningful_delta = min_meaningful_delta
 
+        # Soft timing hints only — NEVER treated as proven until actually survived.
+        self.hint_jumps: List[float] = sorted(seed_jumps) if seed_jumps else []
         # Proven sequence of jumps that are 100% FROZEN and IMMUTABLE
-        self.proven_jumps: List[float] = sorted(seed_jumps) if seed_jumps else []
+        self.proven_jumps: List[float] = []
 
         # Systematic pre-obstacle jump offset sweep
         # In GD, jumping ~0.08s to ~0.35s before an obstacle will clear it
@@ -105,7 +107,7 @@ class RLTASOptimizer:
         self.consecutive_barrier_failures: int = 0
 
         self.best_candidate = CandidateRun(
-            jumps=list(self.proven_jumps),
+            jumps=[],
             attempt_number=0,
             generation=1,
             progress_time=0.0,
@@ -180,20 +182,21 @@ class RLTASOptimizer:
             self.current_generation += 1
             self.attempt_in_generation = 1
             self.gen_attempts_count = 0
-            self.gen_best_time = 0.0
+            # Carry global best forward so charts don't falsely regress to ~0 each gen
+            self.gen_best_time = self.best_time
             self.gen_time_sum = 0.0
-            self.gen_best_fitness = 0.0
+            self.gen_best_fitness = self.best_candidate.fitness
             self.gen_fitness_sum = 0.0
             self.gen_success_count = 0
 
-        # Attempt 1: If seed jumps exist, test them directly
-        if self.total_attempts == 1 and len(self.proven_jumps) > 0:
+        # Attempt 1: optionally probe soft seed hints (not proven until survived)
+        if self.total_attempts == 1 and len(self.hint_jumps) > 0:
             return CandidateRun(
-                jumps=list(self.proven_jumps),
+                jumps=list(self.hint_jumps),
                 attempt_number=self.total_attempts,
                 generation=self.current_generation,
                 mutation_type="BaselineSeed",
-                mutation_note=f"Testing initial baseline ({len(self.proven_jumps)} jumps)",
+                mutation_note=f"Testing unverified seed hints ({len(self.hint_jumps)} jumps)",
             )
 
         # Update barrier from actual measured crash time if ahead of current barrier
@@ -298,6 +301,16 @@ class RLTASOptimizer:
             self.best_candidate = candidate.copy()
             self.best_time = measured_time
             self.frontier_barrier = max(1.05, measured_time)
+            # Only lock jumps that actually cleared past the opening barrier.
+            # Failed seed hints / failed first probes must NOT become "proven".
+            if measured_time >= 1.05 + self.min_meaningful_delta:
+                self.proven_jumps = self._jumps_survived_before_crash(
+                    candidate.jumps, measured_time
+                )
+                self.meaningful_improvements_count += 1
+                self.current_offset_index = 0
+            else:
+                self.proven_jumps = []
             self.history.append(candidate.copy())
             return True, "INITIAL_BASELINE", round(measured_time, 2)
 
@@ -310,8 +323,11 @@ class RLTASOptimizer:
             self.consecutive_barrier_failures = 0
 
             # LOCK IN THE WINNING JUMP SEQUENCE PERMANENTLY
-            # All jumps up to this point are now proven and immutable
-            self.proven_jumps = list(candidate.jumps)
+            # Only jumps that occurred before the crash are proven; later
+            # unverified schedule entries (e.g. leftover seed hints) are dropped.
+            self.proven_jumps = self._jumps_survived_before_crash(
+                candidate.jumps, measured_time
+            )
 
             # Advance frontier obstacle barrier to the new crash point ahead
             self.frontier_barrier = max(self.frontier_barrier + 0.5, measured_time)
@@ -351,8 +367,18 @@ class RLTASOptimizer:
             completed_at=current_iso_time(),
         )
 
+    @staticmethod
+    def _jumps_survived_before_crash(
+        jumps: List[float], crash_time: float, margin: float = 0.05
+    ) -> List[float]:
+        """Keep only jumps that were scheduled before the measured crash."""
+        cutoff = crash_time - margin
+        return [round(j, 3) for j in jumps if j <= cutoff]
+
     def reset_best_to_baseline(self, new_jumps: Optional[List[float]] = None) -> None:
+        # Explicit reset may install a known-good prefix; otherwise clear memory.
         jumps = sorted(new_jumps) if new_jumps else []
+        self.hint_jumps = list(jumps)
         self.proven_jumps = list(jumps)
         self.best_candidate = CandidateRun(
             jumps=list(jumps),

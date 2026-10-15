@@ -264,6 +264,8 @@ def test_proven_prefix_is_immutable_and_only_modifies_afterwards():
     # Attempt 1 crashes at initial spike at 1.05s
     c1 = optimizer.generate_next_candidate()
     optimizer.evaluate_attempt(c1, measured_time=1.05, outcome="Crashed")
+    # Failed probe must not be frozen as proven
+    assert optimizer.proven_jumps == []
 
     # Attempt 2 tests a jump at 0.93s and CLEARS the first spike!
     c2 = optimizer.generate_next_candidate(last_crash_time=1.05)
@@ -294,5 +296,45 @@ def test_proven_prefix_is_immutable_and_only_modifies_afterwards():
 
         # Proven path remains completely unchanged
         assert optimizer.proven_jumps == [first_spike_jump]
+
+
+def test_attempt_one_clear_locks_proven_prefix():
+    """Clearing spike 1 on attempt 1 must lock the jump (no instant forget)."""
+    optimizer = RLTASOptimizer(seed_jumps=[])
+
+    c1 = optimizer.generate_next_candidate()
+    assert len(c1.jumps) == 1
+    winning_jump = c1.jumps[0]
+
+    is_improved, label, _ = optimizer.evaluate_attempt(
+        c1, measured_time=1.85, outcome="Crashed"
+    )
+    assert is_improved is True
+    assert label == "INITIAL_BASELINE"
+    assert optimizer.proven_jumps == [winning_jump]
+    assert optimizer.best_time == 1.85
+
+    c2 = optimizer.generate_next_candidate(last_crash_time=1.85)
+    assert c2.jumps[0] == winning_jump
+    assert len(c2.jumps) == 2
+    assert c2.jumps[1] > winning_jump + 0.12
+
+
+def test_failed_seed_hints_are_not_frozen_as_proven():
+    """Unverified seed timings must not block frontier search at spike 1."""
+    optimizer = RLTASOptimizer(seed_jumps=[1.12, 1.95, 2.78, 47.50])
+
+    c1 = optimizer.generate_next_candidate()
+    assert c1.jumps == [1.12, 1.95, 2.78, 47.50]
+    assert c1.mutation_type == "BaselineSeed"
+
+    optimizer.evaluate_attempt(c1, measured_time=1.05, outcome="Crashed")
+    assert optimizer.proven_jumps == []
+    assert optimizer.best_time == 1.05
+
+    c2 = optimizer.generate_next_candidate(last_crash_time=1.05)
+    # Must explore near the first spike, not append after 47.5s
+    assert len(c2.jumps) == 1
+    assert 0.5 <= c2.jumps[0] <= 1.05
 
 
